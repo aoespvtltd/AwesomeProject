@@ -41,14 +41,19 @@ export default function PaymentScreen({setRoute}) {
   const initializePort = async () => {
     try {
       const devices = await UsbSerialManager.list();
+
+      const result = devices.filter(obj => {
+        const strId = obj.deviceId.toString();
+        return strId.startsWith('7') || strId.startsWith('5');
+      });
       // console.log(devices)
-      if (devices && devices.length > 0) {
+      if (result && result.length > 0) {
         const granted = await UsbSerialManager.tryRequestPermission(
-          devices[0].deviceId,
+          result[0].deviceId,
         );
         // console.log(granted)
         if (granted) {
-          const port = await UsbSerialManager.open(devices[0].deviceId, {
+          const port = await UsbSerialManager.open(result[0].deviceId, {
             baudRate: 9600,
             parity: 0,
             dataBits: 8,
@@ -75,6 +80,7 @@ export default function PaymentScreen({setRoute}) {
     queryKey: ['payDetails'],
     queryFn: async () => {
       const res = await getFonePayDetails();
+      await AsyncStorage.setItem("fonepayDetails", res.data.data)
       return res.data.data;
     },
   });
@@ -104,10 +110,10 @@ export default function PaymentScreen({setRoute}) {
 
   const sendDataArray3 = async motorArray => {
     // console.log(serialPort);
-    if (!serialPort) {
-      Alert.alert('Error', 'No serial connection');
-      return;
-    }
+    // if (!serialPort) {
+    //   Alert.alert('Error', 'No serial connection');
+    //   return;
+    // }
 
     const hexStringArray = createMotorRunCmdsWithArray(motorArray);
 
@@ -182,11 +188,12 @@ export default function PaymentScreen({setRoute}) {
         item.productId.productNumber,
         item.quantity,
       ]);
-      console.log(dispenseArray);
-      console.log(message.payloadString)
+      // console.log(dispenseArray);
+      // console.log(message.payloadString)
       // if (validationTraceId === message.payloadString.validationTraceId){
-        await finalizePayment().then(async () => {
-          await sendDataArray3(dispenseArray).then(async () => {
+        await finalizePayment().then(async (data) => {
+          console.log(data?.data?.data?.pnAndQntyArrForNewMod)
+          await sendDataArray3(data?.data?.data?.pnAndQntyArrForNewMod).then(async () => {
             setCountdown(5);
             setQrString(null);
             // setPaymentMessage(`Returning to home ${countdown} seconds`)
@@ -221,6 +228,28 @@ export default function PaymentScreen({setRoute}) {
   //   const qrString = paymentMutation?.data?.data?.data?.qrString;
   //   const amount = paymentMutation?.data?.data?.data?.amount;
   // }
+
+  if (payError){
+    return (
+      <View style={styles.errorContainer}>
+        <View style={styles.errorContent}>
+          <Text style={styles.errorTitle}>Connection Error</Text>
+          <Text style={styles.errorMessage}>
+            Error occurred while finding out which payment system to use. Please ensure:
+          </Text>
+          <View style={styles.errorList}>
+            <Text style={styles.errorListItem}>• Your device is properly configured</Text>
+            <Text style={styles.errorListItem}>• You have a stable internet connection</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.refreshButton}
+            onPress={() => setRoute("checkout")}>
+            <Text style={styles.refreshButtonText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.mainContainer}>
@@ -545,5 +574,61 @@ const styles = StyleSheet.create({
     width: 60,
     height: 20,
     // marginLeft: 4,
+  },
+  errorContainer: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 24,
+    width: '90%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  errorTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#dc2626',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  errorMessage: {
+    fontSize: 16,
+    color: '#4b5563',
+    marginBottom: 16,
+    lineHeight: 22,
+  },
+  errorList: {
+    marginBottom: 24,
+  },
+  errorListItem: {
+    fontSize: 15,
+    color: '#6b7280',
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  refreshButton: {
+    backgroundColor: '#f97316',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  refreshButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

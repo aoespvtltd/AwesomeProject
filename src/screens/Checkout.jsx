@@ -27,6 +27,7 @@ import {
 } from 'react-native-usb-serialport-for-android';
 import {generateCommand} from '../utils/generatorFn';
 import {createMotorRunCmdsWithArray} from '../utils/serialDetail';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export async function initializePort(setSerialPort = () => {}) {
   try {
@@ -131,6 +132,7 @@ const Checkout = ({route, setRoute}) => {
     queryKey: ['payDetails'],
     queryFn: async () => {
       const res = await getFonePayDetails();
+      await AsyncStorage.setItem("fonepayDetails", res.data.data)
       return res.data.data;
     },
   });
@@ -168,6 +170,7 @@ const Checkout = ({route, setRoute}) => {
 
                 // Use improved serial communication function
                 await delay(1000); // Add delay before sending data
+                console.log(data)
                 const sendSuccess = await sendDataArray3(
                   data?.pnAndQntyArrForNewMod,
                 );
@@ -280,13 +283,27 @@ const Checkout = ({route, setRoute}) => {
     }
   }
 
-  if (payError)
+  if (payError){
     return (
-      <Text>
-        Error occured while finding out which payment system to use. Be sure to
-        have properly configured your device or your internet is fine.
-      </Text>
+      <View style={styles.errorContainer}>
+        <View style={styles.errorContent}>
+          <Text style={styles.errorTitle}>Connection Error</Text>
+          <Text style={styles.errorMessage}>
+            Error occurred while finding out which payment system to use. Please ensure:
+          </Text>
+          <View style={styles.errorList}>
+            <Text style={styles.errorListItem}>• Your device is properly configured</Text>
+            <Text style={styles.errorListItem}>• You have a stable internet connection</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.refreshButton}
+            onPress={() => setRoute("nepalCheckout")}>
+            <Text style={styles.refreshButtonText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     );
+  }
 
     if (countdown <= 0) {
       clearCart().then(()=>{
@@ -615,6 +632,62 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 8,
     elevation: 3,
+  },
+  errorContainer: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 24,
+    width: '90%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  errorTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#dc2626',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  errorMessage: {
+    fontSize: 16,
+    color: '#4b5563',
+    marginBottom: 16,
+    lineHeight: 22,
+  },
+  errorList: {
+    marginBottom: 24,
+  },
+  errorListItem: {
+    fontSize: 15,
+    color: '#6b7280',
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  refreshButton: {
+    backgroundColor: '#f97316',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  refreshButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

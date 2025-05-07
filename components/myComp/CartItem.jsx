@@ -34,11 +34,11 @@ const CartItem = ({ product, cartsLoading, cartItems }) => {
     mutationFn: async () => {
       if (quantity > 0) {
         let sum = cartItems.reduce((acc, cart) => acc + cart.quantity, 0);
-        if (sum + quantity - initialQuantity > 5) {
-          alert("Product limit reached. No more allowed.");
-          setQuantity(initialQuantity);
-          return;
-        }
+        // if (sum + quantity - initialQuantity > 5) {
+        //   alert("Product limit reached. No more allowed.");
+        //   setQuantity(initialQuantity);
+        //   return;
+        // }
       }
       return await updateCartItem(product._id, quantity);
     },

@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { DataTable, Button, Text, IconButton } from 'react-native-paper';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { updateProduct } from '../../components/api/api';
-import { Minus, Plus } from 'lucide-react-native';
+import { Minus, Plus, Edit2 } from 'lucide-react-native';
 
 export default function ProductRow({ product }) {
   const [localStock, setLocalStock] = useState(product.stock);
   const [isEdited, setIsEdited] = useState(false);
+  const [isInputActive, setIsInputActive] = useState(false);
   const queryClient = useQueryClient();
 
   const updateStockMutation = useMutation({
@@ -18,6 +19,7 @@ export default function ProductRow({ product }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       setIsEdited(false);
+      setIsInputActive(false);
     },
     onError: (error) => {
       console.log(error);
@@ -45,6 +47,14 @@ export default function ProductRow({ product }) {
     }
   };
 
+  const handleStockChange = (value) => {
+    const numValue = parseInt(value) || 0;
+    if (numValue >= 0 && numValue <= product.stockLimit) {
+      setLocalStock(numValue);
+      setIsEdited(true);
+    }
+  };
+
   return (
     <DataTable.Row style={styles.row}>
       <DataTable.Cell style={{ flex: 0.5 }}>
@@ -63,7 +73,21 @@ export default function ProductRow({ product }) {
             disabled={localStock <= 0}
             style={styles.stockButton}
           />
-          <Text style={styles.stockValue}>{localStock}</Text>
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={[styles.stockInput, !isInputActive && styles.inactiveInput]}
+              value={localStock.toString()}
+              onChangeText={handleStockChange}
+              keyboardType="numeric"
+              // editable={isInputActive}
+              selectTextOnFocus={isInputActive}
+            />
+            {/* <IconButton
+              icon={() => <Edit2 size={16} color="#6366f1" />}
+              onPress={() => setIsInputActive(!isInputActive)}
+              style={styles.editButton}
+            /> */}
+          </View>
           <IconButton
             icon={() => <Plus size={16} color="#6366f1" />}
             onPress={handleIncrement}
@@ -76,43 +100,15 @@ export default function ProductRow({ product }) {
         <Text style={styles.limitText}>{product.stockLimit}</Text>
       </DataTable.Cell>
       <DataTable.Cell style={{ flex: 1 }} numeric>
-      <TouchableOpacity
-      // mode="contained"
-      onPress={handleUpdate}
-      disabled={!isEdited || updateStockMutation.isLoading}
-      
-      style={[styles.button, (!isEdited || updateStockMutation.isLoading) ? styles.disabledButton : null]}
-      // style={styles.updateButton}
-      labelStyle={styles.buttonLabel}
-      contentStyle={styles.buttonContent}
-      // buttonColor={isEdited ? '#6366f1' : '#cbd5e1'}
-    >
-      <Text>{updateStockMutation.isLoading ? 'Updating...' : 'Update'}</Text>
-    </TouchableOpacity>
-      {/* {isEdited == true ? <Button
-      mode="contained"
-      onPress={handleUpdate}
-      disabled={!isEdited || updateStockMutation.isLoading}
-      style={styles.updateButton}
-      labelStyle={styles.buttonLabel}
-      contentStyle={styles.buttonContent}
-      buttonColor={"gray"}
-    >
-      {updateStockMutation.isLoading ? 'Updating...' : 'Update'}
-    </Button> : 
-      <Button
-      mode="contained"
-      onPress={handleUpdate}
-      disabled={!isEdited || updateStockMutation.isLoading}
-      style={styles.updateButton}
-      labelStyle={styles.buttonLabel}
-      contentStyle={styles.buttonContent}
-      buttonColor={"blue"}
-    >
-      {updateStockMutation.isLoading ? 'Updating...' : 'Update'}
-    </Button>} */}
-
-
+        <TouchableOpacity
+          onPress={handleUpdate}
+          disabled={!isEdited || updateStockMutation.isLoading}
+          style={[styles.button, (!isEdited || updateStockMutation.isLoading) ? styles.disabledButton : null]}
+          labelStyle={styles.buttonLabel}
+          contentStyle={styles.buttonContent}
+        >
+          <Text style={styles.buttonText}>{updateStockMutation.isLoading ? 'Updating...' : 'Update'}</Text>
+        </TouchableOpacity>
       </DataTable.Cell>
     </DataTable.Row>
   );
@@ -122,7 +118,6 @@ const styles = StyleSheet.create({
   row: {
     minHeight: 64,
     backgroundColor: 'white',
-    // backgroundColor: "white",
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
   },
@@ -146,18 +141,41 @@ const styles = StyleSheet.create({
     margin: 0,
     backgroundColor: '#f1f5f9',
   },
-  stockValue: {
-    minWidth: 32,
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginHorizontal: 4,
+  },
+  stockInput: {
+    minWidth: 40,
     textAlign: 'center',
     fontSize: 16,
     fontWeight: '500',
     color: '#1e293b',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  inactiveInput: {
+    backgroundColor: '#f1f5f9',
+    color: '#64748b',
+  },
+  editButton: {
+    margin: 0,
+    padding: 0,
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
   limitText: {
     fontSize: 14,
     color: '#475569',
     textAlign: "center",
-    // backgroundColor: "red",
     width: "100%"
   },
   updateButton: {
@@ -173,9 +191,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 6,
-    paddingVertical: 4,
+    paddingVertical: 12,
     paddingHorizontal: 2,
-    // marginLeft: 4,
     backgroundColor: "#f97316",
     justifyContent: "center",
     width: "100%",
