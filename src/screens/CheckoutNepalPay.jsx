@@ -19,6 +19,7 @@ import {
   machineId,
   finalizePayment,
   clearCart,
+  getFonePayDetails,
 } from '../../components/api/api';
 import {createMotorRunCmdsWithArray} from '../utils/serialDetail';
 import {useMutation, useQuery} from '@tanstack/react-query';
@@ -34,7 +35,10 @@ export default function PaymentScreen({setRoute}) {
   const [countdown, setCountdown] = useState(120);
   const [qrString, setQrString] = useState('');
   const [amount, setAmount] = useState(0);
-  const [validationTraceId, setValidationTraceId] = useState("")
+  const [validationTraceId, setValidationTraceId] = useState('');
+  const [showReview, setShowReview] = useState(false);
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [mqttClient, setMqttClient] = useState(null);
 
   const topic = `lphaVend/${machineId}/payment`;
 
@@ -46,12 +50,10 @@ export default function PaymentScreen({setRoute}) {
         const strId = obj.deviceId.toString();
         return strId.startsWith('7') || strId.startsWith('5');
       });
-      // console.log(devices)
       if (result && result.length > 0) {
         const granted = await UsbSerialManager.tryRequestPermission(
           result[0].deviceId,
         );
-        // console.log(granted)
         if (granted) {
           const port = await UsbSerialManager.open(result[0].deviceId, {
             baudRate: 9600,
@@ -60,7 +62,6 @@ export default function PaymentScreen({setRoute}) {
             stopBits: 1,
           });
           setSerialPort(port);
-          // console.log(port, 'port');
           return port;
         }
       } else {
@@ -71,7 +72,6 @@ export default function PaymentScreen({setRoute}) {
     }
   };
 
-  
   const {
     data: payDetails,
     isLoading: payIsLoading,
@@ -79,16 +79,29 @@ export default function PaymentScreen({setRoute}) {
   } = useQuery({
     queryKey: ['payDetails'],
     queryFn: async () => {
-      const res = await getFonePayDetails();
-      await AsyncStorage.setItem("fonepayDetails", res.data.data)
-      return res.data.data;
+      try {
+        const res = await getFonePayDetails();
+        
+        if (!res?.data?.data?.nepalPayDetails) {
+          console.log('No NepalPay details found, redirecting to checkout');
+          setRoute("checkout");
+        }
+        return res?.data?.data;
+      } catch (error) {
+        console.error('Error fetching pay details:', error);
+        throw error;
+      }
     },
   });
+
+  // Add a useEffect to monitor payDetails changes
+  // useEffect(() => {
+  //   console.log('PayDetails updated:', payDetails);
+  // }, [payDetails]);
 
   const paymentMutation = useMutation({
     mutationFn: async () => {
       const res = await initiateNepalPay();
-      // console.log(res?.data.data.data.qrString)
       setQrString(res?.data.data.data.qrString);
       setValidationTraceId(res?.data.data.data.validationTraceId);
       setAmount(res?.data.data.totalAmount);
@@ -99,7 +112,7 @@ export default function PaymentScreen({setRoute}) {
     },
     onError: err => {
       console.error(err);
-      Alert.alert('Payment QR Error', err.message || 'Something went wrong');
+      // Alert.alert('Payment QR Error', err.message || 'Something went wrong');
     },
   });
 
@@ -131,11 +144,90 @@ export default function PaymentScreen({setRoute}) {
     }
   };
 
-  // console.log(serialPort)
+  // Initialize MQTT client once
+  useEffect(() => {
+    if (!cartItems?.data?.data) return;
+
+    const initializeMQTT = () => {
+      init({
+        size: 10000,
+        storageBackend: AsyncStorage,
+        defaultExpires: 1000 * 3600 * 24,
+        enableCache: true,
+        reconnect: true,
+        sync: {},
+      });
+
+      const newClient = new Paho.MQTT.Client(
+        'mqtt.eclipseprojects.io',
+        443,
+        `client-${Math.random().toString(16).substr(2, 8)}`,
+      );
+
+      newClient.onConnectionLost = res => {
+        if (res.errorCode !== 0) {
+          console.log('🔌 Connection lost:', res.errorMessage);
+          setConnected(false);
+        }
+      };
+
+      newClient.onMessageArrived = async message => {
+        console.log('📩 MQTT Message:', message.payloadString);
+        try {
+          const data = await finalizePayment();
+          console.log("data: ", data?.data?.data?.pnAndQntyArrForNewMod);
+          if (amount != data?.data?.data?.totalAmount){
+            Alert.alert("The amount from data didn't match the qr.")
+          }
+          
+          const port = await initializePort();
+          await setInterval(()=>{}, 1000)
+          if (port) {
+            await sendDataArray3(data?.data?.data?.pnAndQntyArrForNewMod);
+            setCountdown(10);
+            setQrString(null);
+            setSuccess(true);
+            setShowReview(true);  
+            // Show review for 10 seconds before redirecting
+            setTimeout(() => {
+              setShowReview(false);
+              setRoute('home');
+            }, 10000);
+          }
+        } catch (error) {
+          console.error('Error processing payment:', error);
+        }
+      };
+
+      newClient.connect({
+        onSuccess: () => {
+          setConnected(true);
+          newClient.subscribe(topic);
+          setMqttClient(newClient);
+        },
+        useSSL: true,
+        onFailure: err => {
+          console.error('❌ MQTT connection failed:', err);
+        },
+      });
+    };
+
+    initializeMQTT();
+
+    return () => {
+      if (mqttClient && connected) {
+        mqttClient.disconnect();
+      }
+    };
+  }, [cartItems?.data?.data]); // Remove serialPort from dependencies
+
+  // Separate useEffect for serial port initialization
+  useEffect(() => {
+    initializePort();
+  }, []);
 
   useEffect(() => {
     let port = initializePort();
-    // console.log(port)
     paymentMutation.mutate();
 
     const interval = setInterval(() => {
@@ -151,105 +243,37 @@ export default function PaymentScreen({setRoute}) {
   }, []);
 
   if (countdown <= 0) {
-    clearCart().then(()=>{
-
+    clearCart().then(() => {
       setRoute('home');
-    })
+    });
   }
-
-  useEffect(() => {
-    if (!cartItems || !cartItems.data?.data) return;
-
-    init({
-      size: 10000,
-      storageBackend: AsyncStorage,
-      defaultExpires: 1000 * 3600 * 24,
-      enableCache: true,
-      reconnect: true,
-      sync: {},
-    });
-
-    client = new Paho.MQTT.Client(
-      'mqtt.eclipseprojects.io',
-      443,
-      `client-${Math.random().toString(16).substr(2, 8)}`,
-    );
-
-    client.onConnectionLost = res => {
-      if (res.errorCode !== 0) {
-        console.log('🔌 Connection lost:', res.errorMessage);
-        setConnected(false);
-      }
-    };
-
-    client.onMessageArrived = async message => {
-      // console.log('📩 MQTT Message:', message.payloadString);
-      const dispenseArray = cartItems?.data?.data?.map(item => [
-        item.productId.productNumber,
-        item.quantity,
-      ]);
-      // console.log(dispenseArray);
-      // console.log(message.payloadString)
-      // if (validationTraceId === message.payloadString.validationTraceId){
-        await finalizePayment().then(async (data) => {
-          console.log(data?.data?.data?.pnAndQntyArrForNewMod)
-          await sendDataArray3(data?.data?.data?.pnAndQntyArrForNewMod).then(async () => {
-            setCountdown(5);
-            setQrString(null);
-            // setPaymentMessage(`Returning to home ${countdown} seconds`)
-            setSuccess(true);
-          });
-        });
-        
-      // }else{
-      //   setPaymentMessage('Validation Trace Id invalid')
-      // }
-    };
-
-    client.connect({
-      onSuccess: () => {
-        setConnected(true);
-        client.subscribe(topic);
-      },
-      useSSL: true,
-      onFailure: err => {
-        console.error('❌ MQTT connection failed:', err);
-      },
-    });
-
-    return () => {
-      if (client && connected) {
-        client.disconnect();
-      }
-    };
-  }, [cartItems?.data?.data, serialPort]);
 
   // if (!paymentMutation.isPending){
   //   const qrString = paymentMutation?.data?.data?.data?.qrString;
   //   const amount = paymentMutation?.data?.data?.data?.amount;
   // }
 
-  if (payError){
-    return (
-      <View style={styles.errorContainer}>
-        <View style={styles.errorContent}>
-          <Text style={styles.errorTitle}>Connection Error</Text>
-          <Text style={styles.errorMessage}>
-            Error occurred while finding out which payment system to use. Please ensure:
-          </Text>
-          <View style={styles.errorList}>
-            <Text style={styles.errorListItem}>• Your device is properly configured</Text>
-            <Text style={styles.errorListItem}>• You have a stable internet connection</Text>
-          </View>
-          <TouchableOpacity 
-            style={styles.refreshButton}
-            onPress={() => setRoute("checkout")}>
-            <Text style={styles.refreshButtonText}>Try Again</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
+  // if (payError){
+  //   return (
+  //     <View style={styles.errorContainer}>
+  //       <View style={styles.errorContent}>
+  //         <Text style={styles.errorTitle}>Connection Error</Text>
+  //         <Text style={styles.errorMessage}>
+  //           Error occurred while finding out which payment system to use. Please ensure:
+  //         </Text>
+  //         <View style={styles.errorList}>
+  //           <Text style={styles.errorListItem}>• Your device is properly configured</Text>
+  //           <Text style={styles.errorListItem}>• You have a stable internet connection</Text>
+  //         </View>
+  //         <TouchableOpacity
+  //           style={styles.refreshButton}
+  //           onPress={() => setRoute("checkout")}>
+  //           <Text style={styles.refreshButtonText}>Try Again</Text>
+  //         </TouchableOpacity>
+  //       </View>
+  //     </View>
+  //   );
+  // }
 
   return (
     <View style={styles.mainContainer}>
@@ -301,56 +325,107 @@ export default function PaymentScreen({setRoute}) {
       <ScrollView style={styles.paymentSection}>
         <View style={styles.contentContainer}>
           <Text style={styles.paymentText}>We Accept</Text>
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-  {payDetails?.nepalPayDetails !== null ? (<TouchableOpacity
-    style={{
-      paddingVertical: 8,
-      paddingHorizontal: 16,
-      borderRadius: 12,
-      borderWidth: 2,
-      borderColor: '#f97316',
-      backgroundColor: '#fff7ed',
-      justifyContent: 'center',
-      alignItems: 'center',
-    }}
-    onPress={() => setRoute('nepalCheckout')}>
-    <Image
-      style={{ width: 120, height: 50 }}
-      source={{
-        uri: 'https://files.catbox.moe/qhwpwg.png',
-      }}
-      resizeMode="contain"
-    />
-  </TouchableOpacity>) : ()=>setRoute("checkout")}
-  {payDetails?.merchantDetails !== null ? (<TouchableOpacity
-    style={{
-      paddingVertical: 8,
-      paddingHorizontal: 16,
-      borderRadius: 12,
-      backgroundColor: '#e2e8f0',
-      justifyContent: 'center',
-      alignItems: 'center',
-    }}
-    onPress={() => setRoute('checkout')}>
-    <Image
-      style={{ width: 120, height: 50 }}
-      source={{
-        uri: 'https://login.fonepay.com/assets/img/fonepay_payments_fatafat.png',
-      }}
-      resizeMode="contain"
-    />
-  </TouchableOpacity>) : ()=>setRoute("nepalCheckout")}
-
-</View>
-
+          <View style={{flexDirection: 'row', gap: 12}}>
+            {payDetails?.nepalPayDetails && (
+              <TouchableOpacity
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 16,
+                  borderRadius: 12,
+                  borderWidth: 2,
+                  borderColor: '#f97316',
+                  backgroundColor: '#fff7ed',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+                onPress={() => setRoute('nepalCheckout')}>
+                <Image
+                  style={{width: 120, height: 50}}
+                  source={{
+                    uri: 'https://files.catbox.moe/qhwpwg.png',
+                  }}
+                  resizeMode="contain"
+                />
+              </TouchableOpacity>
+            )}
+            {payDetails?.merchantDetails && (
+              <TouchableOpacity
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 16,
+                  borderRadius: 12,
+                  backgroundColor: '#e2e8f0',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+                onPress={() => setRoute('checkout')}>
+                <Image
+                  style={{width: 120, height: 50}}
+                  source={{
+                    uri: 'https://login.fonepay.com/assets/img/fonepay_payments_fatafat.png',
+                  }}
+                  resizeMode="contain"
+                />
+              </TouchableOpacity>
+            )}
+          </View>
 
           <View style={styles.messageContainer}>
             <Text style={styles.instructionText}>
-              {success
-                ? `Returning to home in ${countdown} ...`
-                : paymentMessage}
+              {success ? (
+                showReview && !reviewSubmitted ? (
+                  <View style={styles.reviewContainer}>
+                    <Text style={styles.reviewTitle}>
+                      How was your experience?
+                    </Text>
+                    <View style={styles.reviewButtons}>
+                      <TouchableOpacity
+                        style={[styles.reviewButton, styles.badButton]}
+                        onPress={() => {
+                          setReviewSubmitted(true);
+                          // Here you can add API call to submit the review
+                        }}>
+                        <Text style={styles.emojiText}>😫</Text>
+                        <Text style={styles.reviewLabel}>Bad</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.reviewButton, styles.averageButton]}
+                        onPress={() => {
+                          setReviewSubmitted(true);
+                          // Here you can add API call to submit the review
+                        }}>
+                        <Text style={styles.emojiText}>😐</Text>
+                        <Text style={styles.reviewLabel}>Average</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.reviewButton, styles.goodButton]}
+                        onPress={() => {
+                          setReviewSubmitted(true);
+                          setCountdown(2)
+                          // Here you can add API call to submit the review
+                        }}>
+                        <Text style={styles.emojiText}>😄</Text>
+                        <Text style={styles.reviewLabel}>Good</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : reviewSubmitted ? (
+                  <View style={styles.thankYouContainer}>
+                    <Text style={styles.thankYouText}>
+                      Thank you for your feedback! 🙏
+                    </Text>
+                    <Text style={styles.messageText}>
+                      Returning to home in {countdown} seconds.
+                    </Text>
+                  </View>
+                ) : (
+                  `Returning to home in ${countdown} ...`
+                )
+              ) : (
+                paymentMessage
+              )}
             </Text>
-            {paymentMutation.isPending ? (
+            {!success && (paymentMutation.isPending ? (
               <LoadingComp />
             ) : qrString ? (
               <>
@@ -361,14 +436,14 @@ export default function PaymentScreen({setRoute}) {
               </>
             ) : (
               <LoadingComp />
-            )}
+            ))}
           </View>
         </View>
         <View style={styles.noPaymentContainer}>
           <Text style={styles.noPaymentText}>No </Text>
           <Image
             style={styles.noPaymentLogo}
-            source={{uri: "https://files.catbox.moe/kue53z.png"}}
+            source={{uri: 'https://files.catbox.moe/kue53z.png'}}
             resizeMode="contain"
           />
         </View>
@@ -521,6 +596,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     // padding: 10,
     borderRadius: 12,
+    marginTop: 20,
     width: '100%',
   },
   successText: {
@@ -559,16 +635,16 @@ const styles = StyleSheet.create({
   },
   noPaymentContainer: {
     margin: 16,
-    width: "100%",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 12,
   },
   noPaymentText: {
     fontSize: 16,
-    fontWeight: "500",
-    color: "#4b5563",
+    fontWeight: '500',
+    color: '#4b5563',
   },
   noPaymentLogo: {
     width: 60,
@@ -630,5 +706,69 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  reviewContainer: {
+    marginTop: 20,
+    alignItems: 'center',
+    width: '100%',
+  },
+  reviewTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 24,
+  },
+  reviewButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    paddingHorizontal: 20,
+  },
+  reviewButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    minWidth: 100,
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  emojiText: {
+    fontSize: 40,
+    marginBottom: 8,
+  },
+  reviewLabel: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+  },
+  badButton: {
+    borderColor: '#ef4444',
+    borderWidth: 2,
+  },
+  averageButton: {
+    borderColor: '#f59e0b',
+    borderWidth: 2,
+  },
+  goodButton: {
+    borderColor: '#22c55e',
+    borderWidth: 2,
+  },
+  thankYouContainer: {
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  thankYouText: {
+    fontSize: 18,
+    color: '#22c55e',
+    fontWeight: 'bold',
+    marginBottom: 8,
   },
 });

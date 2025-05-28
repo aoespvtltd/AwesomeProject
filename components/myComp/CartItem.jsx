@@ -17,10 +17,10 @@ const CartItem = ({ product, cartsLoading, cartItems }) => {
 
     if (change === 1) {
       let sum = cartItems.reduce((acc, cart) => acc + cart.quantity, 0);
-      if (sum + quantity - initialQuantity >= 5) {
-        alert("Product limit reached. No more allowed.");
-        return;
-      }
+      // if (sum + quantity - initialQuantity >= 5) {
+      //   alert("Product limit reached. No more allowed.");
+      //   return;
+      // }
     }
 
     if (newQuantity > 0 && newQuantity <= initialStock + initialQuantity) {

@@ -75,7 +75,7 @@ export default function ProductRow({ product }) {
           />
           <View style={styles.inputContainer}>
             <TextInput
-              style={[styles.stockInput, !isInputActive && styles.inactiveInput]}
+              style={[styles.stockInput]}
               value={localStock.toString()}
               onChangeText={handleStockChange}
               keyboardType="numeric"
@@ -99,7 +99,7 @@ export default function ProductRow({ product }) {
       <DataTable.Cell style={{ flex: 0.5 }} numeric>
         <Text style={styles.limitText}>{product.stockLimit}</Text>
       </DataTable.Cell>
-      <DataTable.Cell style={{ flex: 1 }} numeric>
+      <DataTable.Cell style={{ flex: 0.8 }} numeric>
         <TouchableOpacity
           onPress={handleUpdate}
           disabled={!isEdited || updateStockMutation.isLoading}
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   stockInput: {
-    minWidth: 40,
+    minWidth: 30,
     textAlign: 'center',
     fontSize: 16,
     fontWeight: '500',
@@ -188,11 +188,11 @@ const styles = StyleSheet.create({
   },
   
   button: {
-    flexDirection: "row",
+    // flexDirection: "row",
     alignItems: "center",
     borderRadius: 6,
     paddingVertical: 12,
-    paddingHorizontal: 2,
+    // paddingHorizontal: -4,
     backgroundColor: "#f97316",
     justifyContent: "center",
     width: "100%",

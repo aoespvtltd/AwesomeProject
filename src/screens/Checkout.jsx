@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import {Button, Text, Title, Card, Paragraph} from 'react-native-paper';
 import {useMutation, useQuery} from '@tanstack/react-query';
-import {ArrowLeft, Home} from 'lucide-react-native';
+import {ArrowLeft, Home, Loader2} from 'lucide-react-native';
 import QRCode from 'react-native-qrcode-svg';
 import LoadingComp from '../../components/myComp/LoadingComp';
 import {
@@ -32,17 +32,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export async function initializePort(setSerialPort = () => {}) {
   try {
     const devices = await UsbSerialManager.list();
-    console.log(devices);
-    // Alert.alert(devices)
-    if (!devices) {
-      Alert.alert('No devices found');
-    }
-    if (devices && devices.length > 0) {
+
+    const result = devices.filter(obj => {
+      const strId = obj.deviceId.toString();
+      return strId.startsWith('7') || strId.startsWith('5');
+    });
+    // console.log(devices)
+    if (result && result.length > 0) {
       const granted = await UsbSerialManager.tryRequestPermission(
-        devices[0].deviceId,
+        result[0].deviceId,
       );
       if (granted) {
-        const port = await UsbSerialManager.open(devices[0].deviceId, {
+        const port = await UsbSerialManager.open(result[0].deviceId, {
           baudRate: 9600,
           parity: Parity.None,
           dataBits: 8,
@@ -66,6 +67,8 @@ const Checkout = ({route, setRoute}) => {
   const [countdown, setCountdown] = useState(120);
   const [serialPort, setSerialPort] = useState(null);
   const [connectionAttempts, setConnectionAttempts] = useState(0);
+  const [showReview, setShowReview] = useState(false);
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const MAX_RETRY_ATTEMPTS = 3;
 
   // Add a delay utility function
@@ -112,13 +115,13 @@ const Checkout = ({route, setRoute}) => {
         }
         setSerialPort(null);
 
-        if (attempt === maxRetries) {
-          Alert.alert(
-            'Communication Error',
-            'Failed to send data to device. Please try again.',
-          );
-          return false;
-        }
+        // if (attempt === maxRetries) {
+        //   Alert.alert(
+        //     'Communication Error',
+        //     'Failed to send data to device. Please try again.',
+        //   );
+        //   return false;
+        // }
       }
     }
     return false;
@@ -133,6 +136,9 @@ const Checkout = ({route, setRoute}) => {
     queryFn: async () => {
       const res = await getFonePayDetails();
       await AsyncStorage.setItem("fonepayDetails", res.data.data)
+      if (!res.data.data.fonePayDetails){
+        setRoute("checkout")
+      }
       return res.data.data;
     },
   });
@@ -167,6 +173,7 @@ const Checkout = ({route, setRoute}) => {
                 await finalizePayment();
                 setPaymentSuccess(true);
                 setCountdownText('Returning to home in');
+                setShowReview(true);
 
                 // Use improved serial communication function
                 await delay(1000); // Add delay before sending data
@@ -175,9 +182,13 @@ const Checkout = ({route, setRoute}) => {
                   data?.pnAndQntyArrForNewMod,
                 );
                 if (sendSuccess) {
-                  setCountdown(5);
+                  setCountdown(10);
                   ws.close();
-                  setTimeout(() => setRoute('home'), 5000);
+                  // Show review for 10 seconds before redirecting
+                  setTimeout(() => {
+                    setShowReview(false);
+                    setRoute('home');
+                  }, 10000);
                 } else {
                   // Handle failed communication
                   Alert.alert(
@@ -283,27 +294,6 @@ const Checkout = ({route, setRoute}) => {
     }
   }
 
-  if (payError){
-    return (
-      <View style={styles.errorContainer}>
-        <View style={styles.errorContent}>
-          <Text style={styles.errorTitle}>Connection Error</Text>
-          <Text style={styles.errorMessage}>
-            Error occurred while finding out which payment system to use. Please ensure:
-          </Text>
-          <View style={styles.errorList}>
-            <Text style={styles.errorListItem}>• Your device is properly configured</Text>
-            <Text style={styles.errorListItem}>• You have a stable internet connection</Text>
-          </View>
-          <TouchableOpacity 
-            style={styles.refreshButton}
-            onPress={() => setRoute("nepalCheckout")}>
-            <Text style={styles.refreshButtonText}>Try Again</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
 
     if (countdown <= 0) {
       clearCart().then(()=>{
@@ -366,48 +356,49 @@ const Checkout = ({route, setRoute}) => {
         <View style={styles.contentContainer}>
           <View style={styles.paymentSection}>
             <Text style={styles.paymentText}>We Accept</Text>
-
             <View style={{flexDirection: 'row', gap: 12}}>
-              {payDetails?.nepalPayDetails !== null ? (<TouchableOpacity
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 16,
-                  borderRadius: 12,
-                  backgroundColor: '#e2e8f0',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
-                onPress={() => setRoute('nepalCheckout')}>
-                <Image
-                  style={{width: 120, height: 50}}
-                  source={{
-                    uri: 'https://files.catbox.moe/qhwpwg.png',
+              {payDetails?.nepalPayDetails && (
+                <TouchableOpacity
+                  style={{
+                    paddingVertical: 8,
+                    paddingHorizontal: 16,
+                    borderRadius: 12,
+                    backgroundColor: '#e2e8f0',
+                    justifyContent: 'center',
+                    alignItems: 'center',
                   }}
-                  resizeMode="contain"
-                />
-              </TouchableOpacity>): ()=>{setRoute("checkout"); return <></>}}
-              {payDetails?.merchantDetails !== null ? (
-              <TouchableOpacity
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 16,
-                  borderRadius: 12,
-                  borderWidth: 2,
-                  borderColor: '#f97316',
-                  backgroundColor: '#fff7ed',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
-                onPress={() => setRoute('checkout')}>
-                <Image
-                  style={{width: 120, height: 50}}
-                  source={{
-                    uri: 'https://login.fonepay.com/assets/img/fonepay_payments_fatafat.png',
+                  onPress={() => setRoute('nepalCheckout')}>
+                  <Image
+                    style={{width: 120, height: 50}}
+                    source={{
+                      uri: 'https://files.catbox.moe/qhwpwg.png',
+                    }}
+                    resizeMode="contain"
+                  />
+                </TouchableOpacity>
+              )}
+              {payDetails?.merchantDetails && (
+                <TouchableOpacity
+                  style={{
+                    paddingVertical: 8,
+                    paddingHorizontal: 16,
+                    borderRadius: 12,
+                    borderWidth: 2,
+                    borderColor: '#f97316',
+                    backgroundColor: '#fff7ed',
+                    justifyContent: 'center',
+                    alignItems: 'center',
                   }}
-                  resizeMode="contain"
-                />
-              </TouchableOpacity>): ()=>setRoute("nepalCheckout")}
-
+                  onPress={() => setRoute('checkout')}>
+                  <Image
+                    style={{width: 120, height: 50}}
+                    source={{
+                      uri: 'https://login.fonepay.com/assets/img/fonepay_payments_fatafat.png',
+                    }}
+                    resizeMode="contain"
+                  />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 
@@ -418,9 +409,51 @@ const Checkout = ({route, setRoute}) => {
                 Thank you for the purchase!
               </Text>
               <Text style={styles.messageText}>Have a good day.</Text>
-              <Text style={styles.messageText}>
-                Returning to home in {countdown} seconds.
-              </Text>
+              {showReview && !reviewSubmitted ? (
+                <View style={styles.reviewContainer}>
+                  <Text style={styles.reviewTitle}>How was your experience?</Text>
+                  <View style={styles.reviewButtons}>
+                    <TouchableOpacity
+                      style={[styles.reviewButton, styles.badButton]}
+                      onPress={() => {
+                        setReviewSubmitted(true);
+                        // Here you can add API call to submit the review
+                      }}>
+                      <Text style={styles.emojiText}>😫</Text>
+                      <Text style={styles.reviewLabel}>Bad</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.reviewButton, styles.averageButton]}
+                      onPress={() => {
+                        setReviewSubmitted(true);
+                        // Here you can add API call to submit the review
+                      }}>
+                      <Text style={styles.emojiText}>😐</Text>
+                      <Text style={styles.reviewLabel}>Average</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.reviewButton, styles.goodButton]}
+                      onPress={() => {
+                        setReviewSubmitted(true);
+                        // Here you can add API call to submit the review
+                      }}>
+                      <Text style={styles.emojiText}>😄</Text>
+                      <Text style={styles.reviewLabel}>Good</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : reviewSubmitted ? (
+                <View style={styles.thankYouContainer}>
+                  <Text style={styles.thankYouText}>Thank you for your feedback! 🙏</Text>
+                  <Text style={styles.messageText}>
+                    Returning to home in {countdown} seconds.
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.messageText}>
+                  Returning to home in {countdown} seconds.
+                </Text>
+              )}
             </View>
           ) : isScanned ? (
             <View style={styles.messageContainer}>
@@ -688,6 +721,70 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  reviewContainer: {
+    marginTop: 20,
+    alignItems: 'center',
+    width: '100%',
+  },
+  reviewTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 24,
+  },
+  reviewButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    paddingHorizontal: 20,
+  },
+  reviewButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    minWidth: 100,
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  emojiText: {
+    fontSize: 40,
+    marginBottom: 8,
+  },
+  reviewLabel: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+  },
+  badButton: {
+    borderColor: '#ef4444',
+    borderWidth: 2,
+  },
+  averageButton: {
+    borderColor: '#f59e0b',
+    borderWidth: 2,
+  },
+  goodButton: {
+    borderColor: '#22c55e',
+    borderWidth: 2,
+  },
+  thankYouContainer: {
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  thankYouText: {
+    fontSize: 18,
+    color: '#22c55e',
+    fontWeight: 'bold',
+    marginBottom: 8,
   },
 });
 

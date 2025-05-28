@@ -156,3 +156,11 @@ export const initiateNepalPay = async ()=>{
 export const getFonePayDetails = async ()=>{
   return await apiClient.get("/users/fonePayDetails")
 }
+
+export const downloadApp = async ()=>{
+  return await apiClient.get("/appVersion/downloadApp")
+}
+
+export const getappVersion = async() => {
+  return await apiClient.get("/appVersion/one")
+} 

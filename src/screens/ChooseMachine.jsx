@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { Text, Card, Title, ActivityIndicator } from 'react-native-paper';
 import { useQuery } from '@tanstack/react-query';
-import { getVendingMachinesByOwner } from '../../components/api/api';
+import { getMachineId, getVendingMachinesByOwner } from '../../components/api/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ChooseMachine = ({ setRoute }) => {
@@ -25,6 +25,7 @@ const ChooseMachine = ({ setRoute }) => {
   const handleMachineSelect = async (machineId) => {
     try {
       await AsyncStorage.setItem('machineId', machineId);
+      await getMachineId();
       setRoute('home');
     } catch (error) {
       console.error('Error saving machine selection:', error);

@@ -19,7 +19,7 @@ const secretCodes = {
   "9876543211": "findserial",
   "9876543212": "login",
   "9876543213": "machines",
-  // "9876543214": "homecopy"
+  "9876543214": "test"
 };
 
 const Keypad = ({
@@ -149,6 +149,17 @@ const Keypad = ({
             placeholder="Enter a number"
             value={inputValue}
             onChangeText={handleChange}
+            onSubmitEditing={() => {
+              // Check if there's a matching secret code
+              const matchingCode = Object.keys(secretCodes).find(code => code === inputValue);
+              if (matchingCode) {
+                handleSecretCode(matchingCode);
+              } 
+              // If no secret code matches and we have a valid product, trigger buy
+              else if (filteredProducts.length === 1) {
+                buyByProductNumber();
+              }
+            }}
           />
         </View>
       )}

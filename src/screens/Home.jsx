@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Dimensions,
   FlatList,
+  Alert,
 } from 'react-native';
 import {useQuery, useMutation, useQueryClient} from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -16,6 +17,7 @@ import {
   clearCart,
   getCartLength,
   getOffer,
+  getappVersion,
 } from '../../components/api/api';
 import {categories} from '../../components/api/categories';
 import ProductCard from '../../components/myComp/ProductCard';
@@ -24,7 +26,7 @@ import LoadingComp from '../../components/myComp/LoadingComp';
 import Keypad from '../../components/myComp/Keypad';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import NetInfo from '@react-native-community/netinfo';
-import {columns} from '../constants';
+import {appVersion, columns} from '../constants';
 import {FlashList} from '@shopify/flash-list';
 import ErrorPage from '../../components/myComp/ErrorPage';
 import {QrCode, Trash2} from 'lucide-react-native';
@@ -67,6 +69,8 @@ function VendingMachine({route, setRoute}) {
     machineId = await AsyncStorage.getItem('machineId');
     return idd;
   }
+
+
 
   // Query hooks for fetching products and cart items
   const {

@@ -1,9 +1,9 @@
-import React, { useEffect } from "react";
-import { View, ScrollView, StyleSheet } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, ScrollView, StyleSheet, TouchableOpacity } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getProducts, machineId } from "../../components/api/api";
+import { getappVersion, getProducts, machineId } from "../../components/api/api";
 // import { useRouter, useLocalSearchParams } from "expo-router";
-import { ArrowLeft } from "lucide-react-native";
+import { ArrowLeft, RefreshCcw } from "lucide-react-native";
 import {
   Text,
   Card,
@@ -13,11 +13,29 @@ import {
   Surface,
 } from "react-native-paper";
 import ProductRow from "../../components/myComp/ProductRow";
+import TestDownloadPage from "./test/testDownloadPage";
+import { appVersion } from "../constants";
 
 export default function AdminFillStock({route, setRoute}) {
   // const router = useRouter();
   const queryClient = useQueryClient();
   // const { machineId } = useLocalSearchParams();
+  const [updateNeeded, setUpdateNeeded] = useState(false)
+
+  
+  const checkForUpdates = async () => {
+    try {
+      const response = await getappVersion();
+      console.log(response.data.data)
+      const serverVersion = response.data.data.version;
+      
+      if (serverVersion !== appVersion) {
+        setUpdateNeeded(true)
+      }
+    } catch (error) {
+      console.error('Version check failed:', error);
+    }
+  };
 
   const {
     data: productsFill,
@@ -33,6 +51,7 @@ export default function AdminFillStock({route, setRoute}) {
   });
 
   useEffect(() => {
+    checkForUpdates()
     return () => {
       queryClient.invalidateQueries("productsFill");
     };
@@ -64,6 +83,7 @@ export default function AdminFillStock({route, setRoute}) {
           style={styles.backButton}
         />
         <Text style={styles.title}>Admin - Fill Stock</Text>
+        {updateNeeded ? <TestDownloadPage /> : <Text></Text>}
       </Surface>
 
       <ScrollView style={styles.scrollView}>
@@ -121,6 +141,7 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 12,
     paddingHorizontal: 16,
