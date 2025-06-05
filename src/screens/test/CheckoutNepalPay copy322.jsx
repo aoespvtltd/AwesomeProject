@@ -20,10 +20,10 @@ import {
   finalizePayment,
   clearCart,
   getFonePayDetails,
-} from '../../components/api/api';
-import {createMotorRunCmdsWithArray} from '../utils/serialDetail';
+} from '../../../components/api/api';
+import {createMotorRunCmdsWithArray} from '../../utils/serialDetail';
 import {useMutation, useQuery} from '@tanstack/react-query';
-import LoadingComp from '../../components/myComp/LoadingComp';
+import LoadingComp from '../../../components/myComp/LoadingComp';
 
 let client;
 
@@ -49,7 +49,7 @@ export default function PaymentScreen({setRoute}) {
 
       const result = devices.filter(obj => {
         const strId = obj.deviceId.toString();
-        return strId.startsWith('7') || strId.startsWith('5');
+        return strId.startsWith('7');
       });
       if (result && result.length > 0) {
         const granted = await UsbSerialManager.tryRequestPermission(

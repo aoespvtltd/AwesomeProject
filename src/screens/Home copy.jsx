@@ -240,7 +240,7 @@ function VendingMachine({route, setRoute}) {
           />
           {/* <Text style={styles.title}>Vending</Text> */}
         </TouchableOpacity>
-        {cartLength ? (
+        {/* {cartLength ? (
           <TouchableOpacity
             onPress={() => setRoute('nepalCheckout')}
             style={[styles.clearButton, {backgroundColor: "red"}]}>
@@ -249,7 +249,7 @@ function VendingMachine({route, setRoute}) {
               <Text style={{color: 'white', fontSize: 16}}>Checkout</Text>
             </View>
           </TouchableOpacity>
-        ) : null}
+        ) : null} */}
 
         <View style={styles.navButtons}>
           {cartLength > 0 && (
@@ -293,11 +293,11 @@ function VendingMachine({route, setRoute}) {
       </View>
 
       {/* Category buttons for filtering products */}
-      {/* <CategoryButtons
+      <CategoryButtons
         categories={categories}
         onCategorySelect={setCategory}
         activeCategory={category}
-      /> */}
+      />
 
       {/* Product list using FlashList for better performance */}
       {productsLoading ? (

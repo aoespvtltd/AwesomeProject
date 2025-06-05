@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { Button } from 'react-native-paper';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Button, Text } from 'react-native-paper';
 
 function CategoryButtons({ categories, onCategorySelect }) {
   const [activeCategory, setActiveCategory] = useState(''); // Default is 'All'
@@ -20,20 +20,18 @@ function CategoryButtons({ categories, onCategorySelect }) {
         contentContainerStyle={styles.scrollViewContent}
       >
         {[all, ...categories].map((category, index) => (
-          <Button
+          <TouchableOpacity
             key={index}
             onPress={() => handleCategorySelect(category.slug)}
-            mode="text"
-            contentStyle={[
+            style={[
               styles.buttonContent,
               activeCategory === category.slug || (activeCategory === '' && category.slug === 'all')
-                ? styles.activeButton // Active button styling
-                : styles.inactiveButton, // Inactive button styling
+                ? styles.activeButton
+                : styles.inactiveButton,
             ]}
-            labelStyle={styles.buttonLabel}
           >
-            {category.name}
-          </Button>
+            <Text style={styles.buttonLabel}>{category.name}</Text>
+          </TouchableOpacity>
         ))}
       </ScrollView>
     </View>
@@ -44,6 +42,8 @@ const styles = StyleSheet.create({
   container: {
     height: 50, // Adjust this value as needed
     marginVertical: 10,
+    borderBottomWidth: 2,
+    borderBottomColor: 'lightgray',
   },
   scrollViewContent: {
     paddingHorizontal: 16,
@@ -52,15 +52,18 @@ const styles = StyleSheet.create({
   buttonContent: {
     height: 40, // Ensures consistent height
     minWidth:80,
-    fontSize:40,
+    fontSize:16,
     justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 20,
+    paddingHorizontal: 16,
   },
   activeButton: {
-    backgroundColor: '#f97316', // Orange for active
+    backgroundColor: '#ff6600', // Orange for active
     // backgroundColor: 'green', // Orange for active
   },
   inactiveButton: {
-    backgroundColor: '#95979b', // Gray for inactiver
+    backgroundColor: '#95979b', // Gray for inactive
   },
   buttonLabel: {
     color: 'white',

@@ -13,7 +13,7 @@ import {ArrowLeft, Home, Loader2} from 'lucide-react-native';
 import QRCode from 'react-native-qrcode-svg';
 import LoadingComp from '../../components/myComp/LoadingComp';
 import {
-  initiatePayment,
+  initiateNepalPay,
   finalizePayment,
   clearCart,
   getCartItems,
@@ -28,6 +28,7 @@ import {
 import {generateCommand} from '../utils/generatorFn';
 import {createMotorRunCmdsWithArray} from '../utils/serialDetail';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {io} from 'socket.io-client';
 
 export async function initializePort(setSerialPort = () => {}) {
   try {
@@ -57,7 +58,7 @@ export async function initializePort(setSerialPort = () => {}) {
   }
 }
 
-const Checkout = ({route, setRoute}) => {
+const CheckoutNepal = ({route, setRoute}) => {
   const [qrCodeData, setQrCodeData] = useState('');
   const [orderId, setOrderId] = useState('');
   const [wsUrl, setWsUrl] = useState('');
@@ -69,7 +70,10 @@ const Checkout = ({route, setRoute}) => {
   const [connectionAttempts, setConnectionAttempts] = useState(0);
   const [showReview, setShowReview] = useState(false);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
-  const MAX_RETRY_ATTEMPTS = 3;
+  const [socket, setSocket] = useState(null);
+  const [success, setSuccess] = useState(false)
+  const [amount, setAmount] = useState(false)
+   const MAX_RETRY_ATTEMPTS = 3;
 
   // Add a delay utility function
   const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -136,7 +140,7 @@ const Checkout = ({route, setRoute}) => {
     queryFn: async () => {
       const res = await getFonePayDetails();
       await AsyncStorage.setItem("fonepayDetails", JSON.stringify(res.data.data))
-      if (!res.data.data.fonePayDetails){
+      if (!res.data.data.nepalPayDetails){
         setRoute("checkout")
       }
       return res.data.data;
@@ -144,75 +148,89 @@ const Checkout = ({route, setRoute}) => {
   });
 
   const paymentMutation = useMutation({
-    mutationFn: initiatePayment,
+    mutationFn: async () => {
+      const res = await initiateNepalPay()
+      // console.log(res.data.data)
+      return res
+    },
     onSuccess: async response => {
-      const data = response.data.data;
-      setOrderId(data.prn);
-      setWsUrl(data.wsUrl);
+      const qrData = response.data.data;
+      // console.log("data", qrData.totalAmount)
+      setAmount(qrData?.totalAmount)
 
-      if (data.qrMessage) {
-        setQrCodeData(data.qrMessage);
+      if (qrData.data.qrString) {
+        setQrCodeData(qrData.data.qrString);
 
-        const ws = new WebSocket(data.wsUrl);
+        // Initialize Socket.IO connection
+        const socket = io("https://vendingao-api.xyz");
+        setSocket(socket);
 
-        ws.onmessage = async event => {
-          const jsonData = JSON.parse(event.data);
-          console.log('Received WebSocket message:', jsonData);
+        // Register machine
+        const machineId = await AsyncStorage.getItem("machineId");
+        // console.log("Registering machine with ID:", machineId);
+        socket.emit("register", machineId); // Send machineId directly, not as an object
 
-          if (jsonData.transactionStatus) {
-            const status = JSON.parse(jsonData.transactionStatus);
+        // Listen for payment completion
+        socket.on("paymentCompleted", async (message) => {
+          console.log('Payment completed:', message);
+          let paymentData= JSON.parse(message)
+          console.log('Payment amount:', paymentData?.amount, 'Expected amount:', qrData.totalAmount);
+          
+          // Check if the payment amount matches
+          if (Number(paymentData.amount) === Number(qrData.totalAmount)) {
+            console.log("Payment amount matches, proceeding with payment completion");
+            setPaymentSuccess(true);
+            setIsScanned(true);
 
-            if (status.qrVerified) {
-              setIsScanned(true);
-            }
-
-            if (status.paymentSuccess) {
+            try {
+              const data = await finalizePayment();
               setPaymentSuccess(true);
+              setCountdownText('Returning to home in');
+              setShowReview(true);
 
-              try {
-                await finalizePayment();
-                setPaymentSuccess(true);
-                setCountdownText('Returning to home in');
-                setShowReview(true);
-
-                // Use improved serial communication function
-                await delay(1000); // Add delay before sending data
-                console.log(data)
-                const sendSuccess = await sendDataArray3(
-                  data?.pnAndQntyArrForNewMod,
+              // Use improved serial communication function
+              await delay(1000); // Add delay before sending data
+              console.log(data.data?.data?.pnAndQntyArrForNewMod);
+              const sendSuccess = await sendDataArray3(
+                data?.data?.data?.pnAndQntyArrForNewMod,
+              );
+              
+              if (sendSuccess) {
+                setSuccess(true)
+                setCountdown(10);
+                socket.disconnect();
+                // Show review for 10 seconds before redirecting
+                setTimeout(() => {
+                  setShowReview(false);
+                  setRoute('home');
+                }, 10000);
+              } else {
+                // Handle failed communication
+                Alert.alert(
+                  'Error',
+                  'Failed to communicate with device. Your payment was successful, but please contact support.',
+                  [
+                    {
+                      text: 'Return to Home',
+                      onPress: () => setRoute('home'),
+                    },
+                  ],
                 );
-                if (sendSuccess) {
-                  setCountdown(10);
-                  ws.close();
-                  // Show review for 10 seconds before redirecting
-                  setTimeout(() => {
-                    setShowReview(false);
-                    setRoute('home');
-                  }, 10000);
-                } else {
-                  // Handle failed communication
-                  Alert.alert(
-                    'Error',
-                    'Failed to communicate with device. Your payment was successful, but please contact support.',
-                    [
-                      {
-                        text: 'Return to Home',
-                        onPress: () => setRoute('home'),
-                      },
-                    ],
-                  );
-                }
-              } catch (error) {
-                console.error('Error in payment process:', error);
-                // Alert.alert("Error", "There was an error processing your payment");
               }
+            } catch (error) {
+              console.error('Error in payment process:', error);
             }
+          } else {
+            console.log('Payment amount mismatch:', {
+              receivedAmount: paymentData.amount,
+              expectedAmount: qrData.totalAmount
+            });
           }
-        };
+        });
 
-        ws.onerror = error => {
-          console.error('WebSocket error:', error);
-        };
+        socket.on("connect_error", (error) => {
+          console.error('Socket connection error:', error);
+        });
       }
     },
     onError: error => {
@@ -250,6 +268,15 @@ const Checkout = ({route, setRoute}) => {
     };
   }, []);
 
+  // Cleanup socket connection on component unmount
+  useEffect(() => {
+    return () => {
+      if (socket) {
+        socket.disconnect();
+      }
+    };
+  }, [socket]);
+
   function stringToHex(str) {
     let hex = '';
     for (let i = 0; i < str.length; i++) {
@@ -259,13 +286,19 @@ const Checkout = ({route, setRoute}) => {
     return hex;
   }
 
+  const sendDataArray = async (hexStringArr) => {
+    console.log("hell")
+    let hexStringArray = createMotorRunCmdsWithArray(hexStringArr);
+    console.log(JSON.stringify(hexStringArray));
+  }
+
   async function sendDataArray3(hexStringArr) {
+    let hexStringArray = createMotorRunCmdsWithArray(hexStringArr);
     if (!serialPort) {
       Alert.alert('Error', 'No serial connection available');
       return;
     }
-    let hexStringArray = createMotorRunCmdsWithArray(hexStringArr);
-    console.log(serialPort);
+    console.log(serialPort, hexStringArray);
     try {
       for (let i = 0; i < hexStringArray.length; i++) {
         // Send current hex string
@@ -297,7 +330,6 @@ const Checkout = ({route, setRoute}) => {
 
     if (countdown <= 0) {
       clearCart().then(()=>{
-  
         setRoute('home');
       })
     }
@@ -314,10 +346,10 @@ const Checkout = ({route, setRoute}) => {
         </TouchableOpacity>
 
         {/* <TouchableOpacity onPress={()=>{
-          sendDataArray3([1,2])
+          sendDataArray([1,2])
         }}>
           <Text>Test</Text>
-        </TouchableOpacity> */}
+        </TouchableOpacity>  */}
 
         <TouchableOpacity
           onPress={() => setRoute('home')}
@@ -356,50 +388,52 @@ const Checkout = ({route, setRoute}) => {
         <View style={styles.contentContainer}>
           <View style={styles.paymentSection}>
             <Text style={styles.paymentText}>We Accept</Text>
-            <View style={{flexDirection: 'row', gap: 12}}>
-              {payDetails?.nepalPayDetails && (
-                <TouchableOpacity
-                  style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 16,
-                    borderRadius: 12,
-                    backgroundColor: '#e2e8f0',
-                    justifyContent: 'center',
-                    alignItems: 'center',
+          <View style={{flexDirection: 'row', gap: 12}}>
+            {payDetails?.nepalPayDetails && (
+              <TouchableOpacity
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 16,
+                  borderRadius: 12,
+                  borderWidth: 2,
+                  borderColor: '#f97316',
+                  backgroundColor: '#fff7ed',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+                disabled={success}
+                onPress={() => setRoute('nepalCheckout')}>
+                <Image
+                  style={{width: 120, height: 50}}
+                  source={{
+                    uri: 'https://files.catbox.moe/qhwpwg.png',
                   }}
-                  onPress={() => setRoute('nepalCheckout')}>
-                  <Image
-                    style={{width: 120, height: 50}}
-                    source={{
-                      uri: 'https://files.catbox.moe/qhwpwg.png',
-                    }}
-                    resizeMode="contain"
-                  />
-                </TouchableOpacity>
-              )}
-              {payDetails?.merchantDetails && (
-                <TouchableOpacity
-                  style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 16,
-                    borderRadius: 12,
-                    borderWidth: 2,
-                    borderColor: '#f97316',
-                    backgroundColor: '#fff7ed',
-                    justifyContent: 'center',
-                    alignItems: 'center',
+                  resizeMode="contain"
+                />
+              </TouchableOpacity>
+            )}
+            {payDetails?.merchantDetails && (
+              <TouchableOpacity
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 16,
+                  borderRadius: 12,
+                  backgroundColor: '#e2e8f0',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+                disabled={success}
+                onPress={() => setRoute('checkout')}>
+                <Image
+                  style={{width: 120, height: 50}}
+                  source={{
+                    uri: 'https://login.fonepay.com/assets/img/fonepay_payments_fatafat.png',
                   }}
-                  onPress={() => setRoute('checkout')}>
-                  <Image
-                    style={{width: 120, height: 50}}
-                    source={{
-                      uri: 'https://login.fonepay.com/assets/img/fonepay_payments_fatafat.png',
-                    }}
-                    resizeMode="contain"
-                  />
-                </TouchableOpacity>
-              )}
-            </View>
+                  resizeMode="contain"
+                />
+              </TouchableOpacity>
+            )}
+          </View>
           </View>
 
           {paymentSuccess ? (
@@ -416,6 +450,7 @@ const Checkout = ({route, setRoute}) => {
                     <TouchableOpacity
                       style={[styles.reviewButton, styles.badButton]}
                       onPress={() => {
+                        setCountdown(2)
                         setReviewSubmitted(true);
                         // Here you can add API call to submit the review
                       }}>
@@ -425,6 +460,7 @@ const Checkout = ({route, setRoute}) => {
                     <TouchableOpacity
                       style={[styles.reviewButton, styles.averageButton]}
                       onPress={() => {
+                        setCountdown(2)
                         setReviewSubmitted(true);
                         // Here you can add API call to submit the review
                       }}>
@@ -434,6 +470,7 @@ const Checkout = ({route, setRoute}) => {
                     <TouchableOpacity
                       style={[styles.reviewButton, styles.goodButton]}
                       onPress={() => {
+                        setCountdown(2)
                         setReviewSubmitted(true);
                         // Here you can add API call to submit the review
                       }}>
@@ -471,7 +508,8 @@ const Checkout = ({route, setRoute}) => {
                 Dispense will start automatically after successful payment
               </Text>
               <Text style={styles.amount}>
-                Nrs. {paymentMutation?.data?.data?.data?.amount || '0'}
+                Nrs. {amount || '0'}
+                {/* Nrs. {paymentMutation?.data?.data?.data?.amount || '0'} */}
               </Text>
               <View style={styles.qrCodeContainer}>
                 <QRCode value={qrCodeData} size={200} />
@@ -788,4 +826,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default Checkout;
+export default CheckoutNepal;

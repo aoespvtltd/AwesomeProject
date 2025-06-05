@@ -20,10 +20,10 @@ import {
   finalizePayment,
   clearCart,
   getFonePayDetails,
-} from '../../components/api/api';
-import {createMotorRunCmdsWithArray} from '../utils/serialDetail';
+} from '../../../components/api/api';
+import {createMotorRunCmdsWithArray} from '../../utils/serialDetail';
 import {useMutation, useQuery} from '@tanstack/react-query';
-import LoadingComp from '../../components/myComp/LoadingComp';
+import LoadingComp from '../../../components/myComp/LoadingComp';
 
 let client;
 
@@ -48,7 +48,7 @@ export default function PaymentScreen({setRoute}) {
 
       const result = devices.filter(obj => {
         const strId = obj.deviceId.toString();
-        return strId.startsWith('7') || strId.startsWith('5');
+        return strId.startsWith('7');
       });
       if (result && result.length > 0) {
         const granted = await UsbSerialManager.tryRequestPermission(
@@ -247,6 +247,7 @@ export default function PaymentScreen({setRoute}) {
       setRoute('home');
     });
   }
+  
 
   // if (!paymentMutation.isPending){
   //   const qrString = paymentMutation?.data?.data?.data?.qrString;
@@ -338,6 +339,7 @@ export default function PaymentScreen({setRoute}) {
                   justifyContent: 'center',
                   alignItems: 'center',
                 }}
+                disabled={success}
                 onPress={() => setRoute('nepalCheckout')}>
                 <Image
                   style={{width: 120, height: 50}}
@@ -358,6 +360,7 @@ export default function PaymentScreen({setRoute}) {
                   justifyContent: 'center',
                   alignItems: 'center',
                 }}
+                disabled={success}
                 onPress={() => setRoute('checkout')}>
                 <Image
                   style={{width: 120, height: 50}}

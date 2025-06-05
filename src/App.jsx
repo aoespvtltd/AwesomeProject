@@ -16,10 +16,12 @@ import FindSerial from './screens/FindSerial';
 import Login from './screens/Login';
 import ChooseMachine from './screens/ChooseMachine';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import CheckoutNepalPay from './screens/CheckoutNepalPay';
+import CheckoutNepalPay from './screens/test/CheckoutNepalPay';
 import HomeCopy from './screens/Home copy';
 import Review from './screens/Review';
 import TestDownloadPage from './screens/test/testDownloadPage';
+import CheckoutNepal from './screens/CheckoutNepal';
+import UartScreen from './screens/UartScreen';
 const queryClient = new QueryClient();
 const {width} = Dimensions.get('window');
 
@@ -39,8 +41,10 @@ function App() {
     findserial: FindSerial,
     login: Login,
     machines: ChooseMachine,
-    nepalCheckout: CheckoutNepalPay,
-    test: TestDownloadPage
+    nepalCheckout: CheckoutNepal,
+    // nepalCheckout: CheckoutNepalPay,
+    test: TestDownloadPage,
+    uart: UartScreen
   };
 
   const CurrentScreen = useMemo(() => screens[route] || Home, [route]);

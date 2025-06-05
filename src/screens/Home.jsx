@@ -8,6 +8,7 @@ import {
   Dimensions,
   FlatList,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import {useQuery, useMutation, useQueryClient} from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -259,9 +260,10 @@ function VendingMachine({route, setRoute}) {
           {cartLength > 0 && (
             <TouchableOpacity
               onPress={handleClearCart}
-              style={styles.clearButton}>
+              style={styles.clearButton}
+              disabled={clearCartMutation.isPending}>
               {/* <Text style={styles.clearButtonText}>Clear</Text> */}
-              <Trash2 stroke={'white'} />
+              {clearCartMutation.isPending ? <ActivityIndicator size="small" color="white" /> : <Trash2 stroke={'white'} />}
             </TouchableOpacity>
           )}
           <TouchableOpacity
@@ -286,9 +288,9 @@ function VendingMachine({route, setRoute}) {
           alignItems: 'center',
           width: '100%',
           justifyContent: 'center',
-          backgroundColor: 'red',
+          backgroundColor: '#ff6600',
           gap: 10,
-          marginBottom: 10,
+          // marginBottom: 10,
           padding: 10,
         }}>
         <Text style={{color: 'white', fontSize: 16, fontWeight: 'bold'}}>
@@ -297,18 +299,18 @@ function VendingMachine({route, setRoute}) {
       </View>
 
       {/* Category buttons for filtering products */}
-      {/* <CategoryButtons
+      <CategoryButtons
         categories={categories}
         onCategorySelect={setCategory}
         activeCategory={category}
-      /> */}
+      />
 
       {/* Product list using FlashList for better performance */}
       {productsLoading ? (
         <LoadingComp />
       ) : productsError ? (
         <ErrorPage message={productsError?.message} setRoute={setRoute} />
-      ) : (
+      ) : filteredProducts.length > 0 ? (
         <FlashList
           data={filteredProducts}
           renderItem={renderProductItem}
@@ -318,6 +320,10 @@ function VendingMachine({route, setRoute}) {
           contentContainerStyle={styles.productList}
           windowSize={3}
         />
+      ) : (
+        <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
+          <Text style={{fontSize: 20, fontWeight: 'bold'}}>No products found</Text>
+        </View>
       )}
 
       {/* Keypad component for product number input */}

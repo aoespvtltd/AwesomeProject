@@ -6,10 +6,12 @@ import {
   SafeAreaView,
   Pressable,
   Alert,
+  TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 import {Button, Card, Title, Paragraph, Text} from 'react-native-paper';
-import {ArrowLeft, ShoppingCart} from 'lucide-react-native';
+import {ArrowLeft, ShoppingCart, Trash2} from 'lucide-react-native';
 import {
   clearCart,
   finalizePayment,
@@ -103,22 +105,26 @@ export default function Carts({route, setRoute}) {
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <Pressable onPress={() => setRoute('home')} style={styles.backButton}>
+          <TouchableOpacity onPress={() => setRoute('home')} style={styles.backButton}>
             <ArrowLeft size={24} color="black" />
-          </Pressable>
-          <Title style={styles.title}>Shopping Cart</Title>
+          </TouchableOpacity>
+          <Text style={styles.title}>
+            Total: Rs. {total}
+          </Text>
           {cartItems?.length > 0 && (
-            <Button
-              mode="contained"
-              onPress={handleClearCart}
-              style={[
-                styles.clearButton,
-                cartDisabled && styles.disabledButton,
-              ]}
-              labelStyle={styles.buttonText}
-              disabled={cartDisabled}>
-              {cartDisabled ? 'Clearing...' : 'Clear Cart'}
-            </Button>
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity
+                onPress={handleClearCart}
+                style={styles.clearButton}
+                disabled={cartDisabled}>
+                {cartDisabled ? <ActivityIndicator size="small" color="white" /> : <Trash2 size={20} color="white" strokeWidth={2} />}
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setRoute('nepalCheckout')}
+                style={[styles.clearButton, styles.checkoutButton]}>
+                <Text style={styles.buttonText}>Checkout</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
 
@@ -129,7 +135,7 @@ export default function Carts({route, setRoute}) {
             <LoadingComp />
           ) : CartFetchError ? (
             <ErrorPage setRoute={setRoute} />
-          ) : cartItems?.length > 0 ? (
+          ) : cartItems && cartItems?.length > 0 ? (
             <ScrollView showsVerticalScrollIndicator={false}>
               {cartItems.map(item => (
                 <CartItem
@@ -139,6 +145,7 @@ export default function Carts({route, setRoute}) {
                   cartItems={cartItems}
                 />
               ))}
+              
             </ScrollView>
           ) : (
             <View style={styles.emptyState}>
@@ -159,7 +166,7 @@ export default function Carts({route, setRoute}) {
         </View>
 
         {/* Footer */}
-        {cartItems?.length > 0 && (
+        {/* {cartItems?.length > 0 && (
           <View style={styles.footer}>
             <View style={styles.subtotalContainer}>
               <Text style={styles.subtotalText}>Subtotal</Text>
@@ -175,13 +182,6 @@ export default function Carts({route, setRoute}) {
               labelStyle={styles.checkoutButtonText}>
               Checkout
             </Button>
-            {/* <Button
-              mode="contained"
-              onPress={() => setRoute('nepalCheckout')}
-              style={styles.checkoutButton}
-              labelStyle={styles.checkoutButtonText}>
-              NepalPay Checkout
-            </Button> */}
             <Button
               mode="text"
               onPress={() => setRoute('home')}
@@ -190,7 +190,7 @@ export default function Carts({route, setRoute}) {
               Continue Shopping →
             </Button>
           </View>
-        )}
+        )} */}
       </View>
     </SafeAreaView>
   );
@@ -211,25 +211,43 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: 'white',
     elevation: 2,
+    gap: 12,
   },
   backButton: {
     padding: 8,
+    marginRight: 4,
   },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     flex: 1,
-    marginLeft: 16,
+    textAlign: 'center',
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   clearButton: {
     backgroundColor: '#f97316',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    minWidth: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkoutButton: {
+    minWidth: 100,
   },
   buttonText: {
     color: 'white',
     fontSize: 14,
+    fontWeight: '600',
   },
   scrollView: {
     flex: 1,
@@ -290,14 +308,6 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 14,
     marginBottom: 16,
-  },
-  checkoutButton: {
-    backgroundColor: '#f97316',
-    marginBottom: 8,
-  },
-  checkoutButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
   },
   continueShoppingButton: {
     marginTop: 8,

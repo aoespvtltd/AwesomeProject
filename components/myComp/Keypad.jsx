@@ -19,7 +19,8 @@ const secretCodes = {
   "9876543211": "findserial",
   "9876543212": "login",
   "9876543213": "machines",
-  "9876543214": "test"
+  "9876543214": "test",
+  "9876543215": "uart"
 };
 
 const Keypad = ({
