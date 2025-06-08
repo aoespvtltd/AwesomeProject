@@ -1,161 +1,37 @@
-import React, {useEffect, useState} from 'react';
+import React, {useState} from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import {Text, Button, TextInput, Card} from 'react-native-paper';
-import {NativeModules, NativeEventEmitter} from 'react-native';
 import {ArrowLeft, RefreshCw, Trash2} from 'lucide-react-native';
-
-const {UartModule} = NativeModules;
+import useUart from '../hooks/useUart';
 
 const UartScreen = ({setRoute}) => {
-  const [isInitialized, setIsInitialized] = useState(false);
   const [message, setMessage] = useState('');
-  const [isConnected, setIsConnected] = useState(false);
-  const [receivedMessages, setReceivedMessages] = useState([]);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [helloWorld, setHelloWorld] = useState('');
+  const {
+    isConnected,
+    isRefreshing,
+    helloWorld,
+    receivedMessages,
+    handleRefresh,
+    clearMessages,
+    sendMessage,
+    formatHexInput
+  } = useUart();
 
-  useEffect(() => {
-    initializeUart();
-    const eventEmitter = new NativeEventEmitter(UartModule);
-    const subscription = eventEmitter.addListener('onDataReceived', handleDataReceived);
-
-    // Get hello world message
-    console.log('Available UartModule methods:', Object.keys(UartModule));
-    try {
-      UartModule.getHelloWorld()
-        .then(message => {
-          console.log('Received hello world:', message);
-          setHelloWorld(message);
-        })
-        .catch(error => {
-          console.error('Failed to get hello world:', error);
-          setHelloWorld('Error: ' + error.message);
-        });
-    } catch (error) {
-      console.error('Error calling getHelloWorld:', error);
-      setHelloWorld('Error: ' + error.message);
-    }
-
-    return () => {
-      cleanupUart();
-      subscription.remove();
-    };
-  }, []);
-
-  const handleDataReceived = (data) => {
-    // Validate the received data
-    if (!data || typeof data !== 'string') {
-      console.warn('Invalid data received:', data);
-      return;
-    }
-
-    // Clean up the data - remove any non-hex characters
-    const cleanedData = data.replace(/[^0-9A-Fa-f\s]/g, '');
-    
-    // Only add if we have valid hex data
-    if (cleanedData.trim()) {
-      setReceivedMessages(prev => {
-        const newMessages = [...prev, cleanedData];
-        // Keep only the last 50 messages to prevent memory issues
-        return newMessages.slice(-50);
-      });
-    }
-  };
-
-  const initializeUart = async () => {
-    try {
-      const res = await UartModule.initializeUart();
-      console.log('initializeUart', res);
-      setIsInitialized(true);
-      setIsConnected(true);
-      setIsListening(true);
-    } catch (error) {
-      console.error('Failed to initialize UART:', error);
-      Alert.alert('Error', 'Failed to initialize UART communication');
-    }
-  };
-
-  const cleanupUart = async () => {
-    try {
-      await UartModule.cleanup();
-      setIsInitialized(false);
-      setIsConnected(false);
-      setIsListening(false);
-    } catch (error) {
-      console.error('Failed to cleanup UART:', error);
-    }
-  };
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      await cleanupUart();
-      await initializeUart();
-      Alert.alert('Success', 'UART connection refreshed successfully');
-    } catch (error) {
-      console.error('Failed to refresh UART:', error);
-      Alert.alert('Error', 'Failed to refresh UART connection');
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-  const clearMessages = () => {
-    setReceivedMessages([]);
-  };
-
-  const sendMessage = async () => {
-    if (!message.trim()) {
-      Alert.alert('Error', 'Please enter a message to send');
-      return;
-    }
-
-    try {
-      // Convert message to hex array
-      const hexArray = message
-        .split(' ')
-        .map(byte => {
-          // Remove any '0x' prefix if present
-          const cleanByte = byte.replace('0x', '');
-          return parseInt(cleanByte, 16);
-        })
-        .filter(byte => !isNaN(byte));
-
-      if (hexArray.length === 0) {
-        Alert.alert('Error', 'Invalid hex format. Use space-separated hex values (e.g., "FF 00 1A")');
-        return;
-      }
-
-      console.log('Sending hex array:', hexArray);
-      console.log('Sending hex string:', hexArray.join(' '));
-
-      // Send each byte individually
-      for (const byte of hexArray) {
-        await UartModule.sendData(byte.toString(16).padStart(2, '0'));
-        // Add a small delay between bytes
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-
+  const handleSendMessage = async () => {
+    const success = await sendMessage(message);
+    if (success) {
       setMessage('');
-      console.log('Message sent successfully');
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      Alert.alert('Error', 'Failed to send message');
     }
   };
 
-  const formatHexInput = (text) => {
-    // Remove any non-hex characters and format with spaces
-    const cleaned = text.replace(/[^0-9A-Fa-f]/g, '');
-    const formatted = cleaned.match(/.{1,2}/g)?.join(' ') || '';
-    setMessage(formatted.toUpperCase());
+  const handleFormatInput = (text) => {
+    const formatted = formatHexInput(text);
+    setMessage(formatted);
   };
 
   return (
@@ -212,14 +88,14 @@ const UartScreen = ({setRoute}) => {
               mode="outlined"
               label="Hex Values (space-separated)"
               value={message}
-              onChangeText={formatHexInput}
+              onChangeText={handleFormatInput}
               placeholder="FF 00 1A"
               style={styles.input}
               disabled={!isConnected}
             />
             <Button
               mode="contained"
-              onPress={sendMessage}
+              onPress={handleSendMessage}
               style={styles.sendButton}
               disabled={!isConnected}>
               Send Message

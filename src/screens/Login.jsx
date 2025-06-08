@@ -8,6 +8,7 @@ import {
   Alert,
 } from 'react-native';
 import { loginUser } from '../../components/api/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const Login = ({ setRoute }) => {
   const [email, setEmail] = useState('');
@@ -26,8 +27,14 @@ const Login = ({ setRoute }) => {
         email,
         password
       });
+      console.log(response.data.data)
+
+      if (response.data.data.codes){
+
+      }
       
       if (response.data.data.accessToken) {
+        await AsyncStorage.setItem("accessToken", response.data.data.accessToken)
         setRoute('machines'); // Navigate to home on successful login
       }
     } catch (error) {

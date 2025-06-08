@@ -6,6 +6,7 @@ import {
   Alert,
   TouchableOpacity,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import {Button, Text, Title, Card, Paragraph} from 'react-native-paper';
 import {useMutation, useQuery} from '@tanstack/react-query';
@@ -60,76 +61,19 @@ export async function initializePort(setSerialPort = () => {}) {
 
 const CheckoutNepal = ({route, setRoute}) => {
   const [qrCodeData, setQrCodeData] = useState('');
-  const [orderId, setOrderId] = useState('');
-  const [wsUrl, setWsUrl] = useState('');
-  const [isScanned, setIsScanned] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [countdownText, setCountdownText] = useState('Time remaining');
   const [countdown, setCountdown] = useState(120);
   const [serialPort, setSerialPort] = useState(null);
-  const [connectionAttempts, setConnectionAttempts] = useState(0);
   const [showReview, setShowReview] = useState(false);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const [socket, setSocket] = useState(null);
   const [success, setSuccess] = useState(false)
   const [amount, setAmount] = useState(false)
-   const MAX_RETRY_ATTEMPTS = 3;
+
 
   // Add a delay utility function
   const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-  // Improved serial communication function with retries
-  const sendDataWithRetries = async (data, maxRetries = 3) => {
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        // Initialize port if not connected
-        if (!serialPort || attempt > 0) {
-          await delay(1000); // Add delay before reconnection attempt
-          const devices = await UsbSerialManager.list();
-          if (!devices || devices.length === 0) continue;
-
-          const granted = await UsbSerialManager.tryRequestPermission(
-            devices[0].deviceId,
-          );
-          if (!granted) continue;
-
-          const port = await UsbSerialManager.open(devices[0].deviceId, {
-            baudRate: 9600,
-            parity: Parity.None,
-            dataBits: 8,
-            stopBits: 1,
-          });
-          setSerialPort(port);
-        }
-
-        // Send data with delay
-        await delay(500);
-        const hexData = stringToHex(generateCommand(data));
-        await serialPort.send(hexData);
-        console.log('Data sent successfully:', hexData);
-        return true;
-      } catch (error) {
-        console.error(`Attempt ${attempt + 1} failed:`, error);
-        if (serialPort) {
-          try {
-            await serialPort.close();
-          } catch (e) {
-            console.error('Error closing port:', e);
-          }
-        }
-        setSerialPort(null);
-
-        // if (attempt === maxRetries) {
-        //   Alert.alert(
-        //     'Communication Error',
-        //     'Failed to send data to device. Please try again.',
-        //   );
-        //   return false;
-        // }
-      }
-    }
-    return false;
-  };
 
   const {
     data: payDetails,
@@ -150,7 +94,8 @@ const CheckoutNepal = ({route, setRoute}) => {
   const paymentMutation = useMutation({
     mutationFn: async () => {
       const res = await initiateNepalPay()
-      // console.log(res.data.data)
+      setQrCodeData(res.data.data.data.qrString)
+      console.log(res.data.data.data)
       return res
     },
     onSuccess: async response => {
@@ -180,7 +125,6 @@ const CheckoutNepal = ({route, setRoute}) => {
           if (Number(paymentData.amount) === Number(qrData.totalAmount)) {
             console.log("Payment amount matches, proceeding with payment completion");
             setPaymentSuccess(true);
-            setIsScanned(true);
 
             try {
               const data = await finalizePayment();
@@ -247,6 +191,7 @@ const CheckoutNepal = ({route, setRoute}) => {
     queryKey: ['cartItems'],
     queryFn: async () => {
       let cartData = await getUnpaidCartsByMachine();
+      console.log(cartData.data.data)
       return cartData;
     },
   });
@@ -277,20 +222,6 @@ const CheckoutNepal = ({route, setRoute}) => {
     };
   }, [socket]);
 
-  function stringToHex(str) {
-    let hex = '';
-    for (let i = 0; i < str.length; i++) {
-      const charCode = str.charCodeAt(i).toString(16).padStart(2, '0');
-      hex += charCode;
-    }
-    return hex;
-  }
-
-  const sendDataArray = async (hexStringArr) => {
-    console.log("hell")
-    let hexStringArray = createMotorRunCmdsWithArray(hexStringArr);
-    console.log(JSON.stringify(hexStringArray));
-  }
 
   async function sendDataArray3(hexStringArr) {
     let hexStringArray = createMotorRunCmdsWithArray(hexStringArr);
@@ -309,12 +240,6 @@ const CheckoutNepal = ({route, setRoute}) => {
         await serialPort.send(hexString);
 
         let timeoutTime = 5000;
-        // if (hexStringArr[i][0] <= 10){
-        //   timeoutTime = 5000
-        // }else{
-        //   timeoutTime = 10000;
-        // }
-
         // Don't wait after the last string
         if (i < hexStringArray.length - 1) {
           // Wait for 3 seconds before sending next string
@@ -344,12 +269,6 @@ const CheckoutNepal = ({route, setRoute}) => {
           <ArrowLeft color="#000" size={24} />
           <Text style={styles.buttonText}>Back</Text>
         </TouchableOpacity>
-
-        {/* <TouchableOpacity onPress={()=>{
-          sendDataArray([1,2])
-        }}>
-          <Text>Test</Text>
-        </TouchableOpacity>  */}
 
         <TouchableOpacity
           onPress={() => setRoute('home')}
@@ -436,7 +355,21 @@ const CheckoutNepal = ({route, setRoute}) => {
           </View>
           </View>
 
-          {paymentSuccess ? (
+          {qrCodeData ? (
+            <View style={styles.messageContainer}>
+              <Text style={styles.instructionText}>Scan the QR to pay</Text>
+              <Text style={styles.subInstructionText}>
+                Dispense will start automatically after successful payment
+              </Text>
+              <Text style={styles.amount}>
+                Nrs. {amount || '0'}
+                {/* Nrs. {paymentMutation?.data?.data?.data?.amount || '0'} */}
+              </Text>
+              <View style={styles.qrCodeContainer}>
+                <QRCode value={qrCodeData} size={200} />
+              </View>
+            </View>
+          ) : paymentSuccess ? (
             <View style={styles.messageContainer}>
               <Text style={styles.successText}>Payment Successful!</Text>
               <Text style={styles.messageText}>
@@ -492,32 +425,11 @@ const CheckoutNepal = ({route, setRoute}) => {
                 </Text>
               )}
             </View>
-          ) : isScanned ? (
-            <View style={styles.messageContainer}>
-              <Text style={styles.processingText}>
-                QR Code Scanned! Processing payment...
-              </Text>
-              <View style={styles.qrCodeContainer}>
-                <QRCode value={qrCodeData} size={200} />
-              </View>
-            </View>
-          ) : qrCodeData ? (
-            <View style={styles.messageContainer}>
-              <Text style={styles.instructionText}>Scan the QR to pay</Text>
-              <Text style={styles.subInstructionText}>
-                Dispense will start automatically after successful payment
-              </Text>
-              <Text style={styles.amount}>
-                Nrs. {amount || '0'}
-                {/* Nrs. {paymentMutation?.data?.data?.data?.amount || '0'} */}
-              </Text>
-              <View style={styles.qrCodeContainer}>
-                <QRCode value={qrCodeData} size={200} />
-              </View>
-            </View>
-          ) : (
+          ) 
+          : paymentMutation.isPending ? (
             <LoadingComp />
-          )}
+          ) : <ActivityIndicator />
+          }
         </View>
 
       </ScrollView>

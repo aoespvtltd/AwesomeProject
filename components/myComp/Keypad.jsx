@@ -1,5 +1,5 @@
 // import { useRouter } from "expo-router";
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   TextInput,
@@ -12,16 +12,24 @@ import {
 import { FAB, Icon } from "react-native-paper";
 import { addToCartByPN } from "../api/api";
 import { Trash, Trash2 } from "lucide-react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Define an object that maps key combinations to routes
-const secretCodes = {
-  "9876543210": "fillstock",
-  "9876543211": "findserial",
-  "9876543212": "login",
-  "9876543213": "machines",
-  "9876543214": "test",
-  "9876543215": "uart"
-};
+// const secretCodes = {
+//   "9876543210": "fillstock",
+//   "9876543211": "findserial",
+//   "9876543212": "login",
+//   "9876543213": "machines",
+//   "9876543215": "uart"
+// };
+
+// const secretCodes = {
+//   "fillStock": "9876543210",
+//   "findSerial": "9876543211",
+//   "login": "9876543212",
+//   "machines": "9876543213",
+//   "uart": "9876543214"
+// };
 
 const Keypad = ({
   inputValue,
@@ -33,6 +41,24 @@ const Keypad = ({
   clearCart,
   setRoute
 }) => {
+  const [secretCodes, setSecretCodes] = useState({});
+
+  const getSecretCodes = async () => {
+    try {
+      const codes = await AsyncStorage.getItem("codes");
+      console.log("Retrieved codes:", codes);
+      const parsedCodes = JSON.parse(codes);
+      setSecretCodes(parsedCodes || {});
+    } catch (error) {
+      console.error("Error fetching secret codes:", error);
+      setSecretCodes({});
+    }
+  };
+
+  useEffect(() => {
+    getSecretCodes();
+  }, []);
+
   const createTwoButtonAlert = () => {
     Alert.alert(
       'Error',
@@ -91,10 +117,10 @@ const Keypad = ({
   };
 
   const handleSecretCode = (value) => {
-    // Check if the input matches any secret code
-    const destination = secretCodes[value];
-    if (destination) {
-      setRoute(destination); // Navigate to the corresponding route
+    // Find the route that matches the input value
+    const matchingRoute = Object.entries(secretCodes).find(([_, code]) => code === value)?.[0];
+    if (matchingRoute) {
+      setRoute(matchingRoute); // Navigate to the corresponding route
       setInputValue(""); // Clear the input
     }
   };
@@ -166,7 +192,7 @@ const Keypad = ({
       )}
 
       {/* Your existing keypad UI */}
-      {Object.entries(secretCodes).map(([code, route]) => (
+      {Object.entries(secretCodes).map(([route, code]) => (
         inputValue === code && (
           <FAB
             key={code}

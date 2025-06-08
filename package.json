@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "android": "react-native run-android",
+    "dev": "react-native run-android",
     "a": "react-native run-android",
     "w": "react-native run-web",
     "web": "react-native run-web",

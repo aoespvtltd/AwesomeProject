@@ -8,7 +8,7 @@ import RNFS from 'react-native-fs';
 
 // Import Screens
 // import Home from './screens/test/Home3';
-import Home from './screens/Home';
+import Home from './screens/HomeFor15Inch';
 import Carts from './screens/Carts';
 import Checkout from './screens/Checkout';
 import FillStock from './screens/FillStock';
@@ -37,8 +37,8 @@ function App() {
     homecopy: HomeCopy,
     carts: Carts,
     checkout: Checkout,
-    fillstock: FillStock,
-    findserial: FindSerial,
+    fillStock: FillStock,
+    findSerial: FindSerial,
     login: Login,
     machines: ChooseMachine,
     nepalCheckout: CheckoutNepal,

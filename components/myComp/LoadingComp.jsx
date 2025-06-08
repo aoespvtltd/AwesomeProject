@@ -37,9 +37,9 @@ function LoadingComp({message= "Loading, please wait..."}) {
 
 const styles = StyleSheet.create({
   overlay: {
-    height: "70%",
+    height: "50%",
     justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: 'end',
     backgroundColor: '#f3f4f6', // Equivalent to bg-gray-100
     zIndex: 50,
   },

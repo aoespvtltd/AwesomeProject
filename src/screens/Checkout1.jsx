@@ -20,42 +20,10 @@ import {
   getUnpaidCartsByMachine,
   getFonePayDetails,
 } from '../../components/api/api';
-import {
-  UsbSerialManager,
-  UsbSerial,
-  Parity,
-} from 'react-native-usb-serialport-for-android';
 import {generateCommand} from '../utils/generatorFn';
 import {createMotorRunCmdsWithArray} from '../utils/serialDetail';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-export async function initializePort(setSerialPort = () => {}) {
-  try {
-    const devices = await UsbSerialManager.list();
-
-    const result = devices.filter(obj => {
-      const strId = obj.deviceId.toString();
-      return strId.startsWith('7');
-    });
-    // console.log(devices)
-    if (result && result.length > 0) {
-      const granted = await UsbSerialManager.tryRequestPermission(
-        result[0].deviceId,
-      );
-      if (granted) {
-        const port = await UsbSerialManager.open(result[0].deviceId, {
-          baudRate: 9600,
-          parity: Parity.None,
-          dataBits: 8,
-          stopBits: 1,
-        });
-        setSerialPort(port);
-      }
-    }
-  } catch (error) {
-    console.error('Failed to initialize serial port:', error);
-  }
-}
+import useUart from '../hooks/useUart';
 
 const Checkout = ({route, setRoute}) => {
   const [qrCodeData, setQrCodeData] = useState('');
@@ -65,67 +33,18 @@ const Checkout = ({route, setRoute}) => {
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [countdownText, setCountdownText] = useState('Time remaining');
   const [countdown, setCountdown] = useState(120);
-  const [serialPort, setSerialPort] = useState(null);
-  const [connectionAttempts, setConnectionAttempts] = useState(0);
   const [showReview, setShowReview] = useState(false);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
-  const MAX_RETRY_ATTEMPTS = 3;
+
+  const {
+    isConnected,
+    sendMessage,
+    handleRefresh,
+  } = useUart();
 
   // Add a delay utility function
   const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-  // Improved serial communication function with retries
-  const sendDataWithRetries = async (data, maxRetries = 3) => {
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        // Initialize port if not connected
-        if (!serialPort || attempt > 0) {
-          await delay(1000); // Add delay before reconnection attempt
-          const devices = await UsbSerialManager.list();
-          if (!devices || devices.length === 0) continue;
-
-          const granted = await UsbSerialManager.tryRequestPermission(
-            devices[0].deviceId,
-          );
-          if (!granted) continue;
-
-          const port = await UsbSerialManager.open(devices[0].deviceId, {
-            baudRate: 9600,
-            parity: Parity.None,
-            dataBits: 8,
-            stopBits: 1,
-          });
-          setSerialPort(port);
-        }
-
-        // Send data with delay
-        await delay(500);
-        const hexData = stringToHex(generateCommand(data));
-        await serialPort.send(hexData);
-        console.log('Data sent successfully:', hexData);
-        return true;
-      } catch (error) {
-        console.error(`Attempt ${attempt + 1} failed:`, error);
-        if (serialPort) {
-          try {
-            await serialPort.close();
-          } catch (e) {
-            console.error('Error closing port:', e);
-          }
-        }
-        setSerialPort(null);
-
-        // if (attempt === maxRetries) {
-        //   Alert.alert(
-        //     'Communication Error',
-        //     'Failed to send data to device. Please try again.',
-        //   );
-        //   return false;
-        // }
-      }
-    }
-    return false;
-  };
 
   const {
     data: payDetails,
@@ -147,6 +66,7 @@ const Checkout = ({route, setRoute}) => {
     mutationFn: initiatePayment,
     onSuccess: async response => {
       const data = response.data.data;
+      console.log(data)
       setOrderId(data.prn);
       setWsUrl(data.wsUrl);
 
@@ -175,7 +95,7 @@ const Checkout = ({route, setRoute}) => {
                 setCountdownText('Returning to home in');
                 setShowReview(true);
 
-                // Use improved serial communication function
+                // Use improved UART communication function
                 await delay(1000); // Add delay before sending data
                 console.log(data)
                 const sendSuccess = await sendDataArray3(
@@ -204,7 +124,6 @@ const Checkout = ({route, setRoute}) => {
                 }
               } catch (error) {
                 console.error('Error in payment process:', error);
-                // Alert.alert("Error", "There was an error processing your payment");
               }
             }
           }
@@ -233,21 +152,21 @@ const Checkout = ({route, setRoute}) => {
     },
   });
 
-  // Initialize serial port when component mounts
+  // Initialize countdown timer
   useEffect(() => {
-    initializePort(setSerialPort);
-    paymentMutation.mutate();
-
     const interval = setInterval(() => {
       setCountdown(prev => prev - 1);
     }, 1000);
 
     return () => {
       clearInterval(interval);
-      if (serialPort) {
-        serialPort.close().catch(console.error);
-      }
     };
+  }, []);
+
+  // Initialize payment when component mounts
+  useEffect(() => {
+    console.log('Initializing payment...');
+    paymentMutation.mutate();
   }, []);
 
   function stringToHex(str) {
@@ -260,32 +179,39 @@ const Checkout = ({route, setRoute}) => {
   }
 
   async function sendDataArray3(hexStringArr) {
-    if (!serialPort) {
-      Alert.alert('Error', 'No serial connection available');
+    if (!isConnected) {
+      Alert.alert('Error', 'No UART connection available');
       return;
     }
     let hexStringArray = createMotorRunCmdsWithArray(hexStringArr);
-    console.log(serialPort);
+    console.log('Sending hex string array:', hexStringArray);
     try {
       for (let i = 0; i < hexStringArray.length; i++) {
-        // Send current hex string
+        // Get the current hex string
         const hexString = hexStringArray[i];
-        console.log(
-          `Sending string ${i + 1}/${hexStringArray.length}: ${hexString}`,
-        );
-        await serialPort.send(hexString);
-
-        let timeoutTime = 5000;
-
-        // Don't wait after the last string
-        if (i < hexStringArray.length - 1) {
-          // Wait for 3 seconds before sending next string
-          await new Promise(resolve => setTimeout(resolve, timeoutTime));
-        }
+        
+        // Remove any non-hex characters and make uppercase
+        const clean = hexString.replace(/[^0-9a-fA-F]/g, '').toUpperCase();
+        
+        // Ensure even number of characters
+        const even = clean.length % 2 === 0 ? clean : '0' + clean;
+        
+        // Split into two-character chunks and join with spaces
+        let message = even.match(/.{1,2}/g)?.join(' ') ?? '';
+        console.log('Sending message:', message);
+        
+        
+        await sendMessage(message);
+                // Don't wait after the last string
+                if (i < hexStringArray.length - 1) {
+                  // Wait for 3 seconds before sending next string
+                  await new Promise(resolve => setTimeout(resolve, timeoutTime));
+                }
       }
       return true;
     } catch (error) {
       console.error('Error sending data:', error);
+      return false;
     }
   }
 

@@ -127,8 +127,9 @@ export const updateProduct = async (productId, newVal) => {
 
 export const loginUser = async userData => {
   const res = await apiClient.post('/users/login', userData);
-  AsyncStorage.setItem('accessToken', res.data.data.accessToken);
-  AsyncStorage.setItem('refreshToken', res.data.data.refreshToken);
+  await AsyncStorage.setItem('accessToken', res.data.data.accessToken);
+  await AsyncStorage.setItem('refreshToken', res.data.data.refreshToken);
+  await AsyncStorage.setItem("codes", JSON.stringify(res.data.data.user.codes))
   return res;
 };
 

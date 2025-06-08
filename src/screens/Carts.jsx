@@ -16,10 +16,12 @@ import {
   clearCart,
   finalizePayment,
   getCartItems,
+  initiateNepalPay,
 } from '../../components/api/api';
 import CartItem from '../../components/myComp/CartItem';
 import LoadingComp from '../../components/myComp/LoadingComp';
 import ErrorPage from '../../components/myComp/ErrorPage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function Carts({route, setRoute}) {
   // Initialize React Query client for managing server state
@@ -94,6 +96,14 @@ export default function Carts({route, setRoute}) {
     setRoute('home');
   };
 
+  const gotoCheckout = async ()=>{
+    initiateNepalPay().then((res)=>{
+      console.log(res.data.data.data.qrString)
+      AsyncStorage.setItem("qrString", res.data.data.data.qrString)
+    })
+    setRoute("nepalCheckout")
+  }
+
   // // Show loading spinner while cart data is being fetched
   // if (cartsLoading) return <LoadingComp />;
 
@@ -120,7 +130,8 @@ export default function Carts({route, setRoute}) {
                 {cartDisabled ? <ActivityIndicator size="small" color="white" /> : <Trash2 size={20} color="white" strokeWidth={2} />}
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={() => setRoute('nepalCheckout')}
+                onPress={() => gotoCheckout()}
+                // onPress={() => setRoute('nepalCheckout')}
                 style={[styles.clearButton, styles.checkoutButton]}>
                 <Text style={styles.buttonText}>Checkout</Text>
               </TouchableOpacity>
@@ -154,13 +165,13 @@ export default function Carts({route, setRoute}) {
               <Text style={styles.emptyStateText}>
                 Add some items to your cart to get started
               </Text>
-              <Button
+              <TouchableOpacity
                 mode="contained"
                 onPress={() => setRoute('home')}
-                style={styles.shopButton}
+                style={[styles.clearButton, {borderRadius: 20, paddingHorizontal: 30}]}
                 labelStyle={styles.shopButtonText}>
-                Start Shopping
-              </Button>
+                <Text style={styles.buttonText}>Start Shopping</Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -280,6 +291,7 @@ const styles = StyleSheet.create({
   shopButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
+    color: "white"
   },
   footer: {
     backgroundColor: 'white',

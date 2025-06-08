@@ -12,4 +12,4 @@ export const baseURL = "https://vendingao-api.xyz/api/v1"
 
 // 67c93adef34694106735711a
 
-export const appVersion = 4
+export const appVersion = 5
