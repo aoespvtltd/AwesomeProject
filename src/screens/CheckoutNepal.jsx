@@ -355,20 +355,8 @@ const CheckoutNepal = ({route, setRoute}) => {
           </View>
           </View>
 
-          {qrCodeData ? (
-            <View style={styles.messageContainer}>
-              <Text style={styles.instructionText}>Scan the QR to pay</Text>
-              <Text style={styles.subInstructionText}>
-                Dispense will start automatically after successful payment
-              </Text>
-              <Text style={styles.amount}>
-                Nrs. {amount || '0'}
-                {/* Nrs. {paymentMutation?.data?.data?.data?.amount || '0'} */}
-              </Text>
-              <View style={styles.qrCodeContainer}>
-                <QRCode value={qrCodeData} size={200} />
-              </View>
-            </View>
+          {paymentMutation.isPending ? (
+            <LoadingComp />
           ) : paymentSuccess ? (
             <View style={styles.messageContainer}>
               <Text style={styles.successText}>Payment Successful!</Text>
@@ -425,11 +413,22 @@ const CheckoutNepal = ({route, setRoute}) => {
                 </Text>
               )}
             </View>
-          ) 
-          : paymentMutation.isPending ? (
-            <LoadingComp />
-          ) : <ActivityIndicator />
-          }
+          ) : qrCodeData ? (
+            <View style={styles.messageContainer}>
+              <Text style={styles.instructionText}>Scan the QR to pay</Text>
+              <Text style={styles.subInstructionText}>
+                Dispense will start automatically after successful payment
+              </Text>
+              <Text style={styles.amount}>
+                Nrs. {amount || '0'}
+              </Text>
+              <View style={styles.qrCodeContainer}>
+                <QRCode value={qrCodeData} size={200} />
+              </View>
+            </View>
+          ) : (
+            <ActivityIndicator />
+          )}
         </View>
 
       </ScrollView>
