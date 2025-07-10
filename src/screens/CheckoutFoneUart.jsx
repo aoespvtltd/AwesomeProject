@@ -9,57 +9,23 @@ import {
 } from 'react-native';
 import {Button, Text, Title, Card, Paragraph} from 'react-native-paper';
 import {useMutation, useQuery} from '@tanstack/react-query';
-import {ArrowLeft, Home, Loader2} from 'lucide-react-native';
+import {AlertCircle, ArrowLeft, Home, Loader2} from 'lucide-react-native';
 import QRCode from 'react-native-qrcode-svg';
-import LoadingComp from '../../../components/myComp/LoadingComp';
+import LoadingComp from '../../components/myComp/LoadingComp';
 import {
-  initiateNepalPay,
+  initiatePayment,
   finalizePayment,
   clearCart,
   getCartItems,
   getUnpaidCartsByMachine,
   getFonePayDetails,
-} from '../../../components/api/api';
-import {
-  UsbSerialManager,
-  UsbSerial,
-  Parity,
-} from 'react-native-usb-serialport-for-android';
-import {generateCommand} from '../../utils/generatorFn';
-import {createMotorRunCmdsWithArray} from '../../utils/serialDetail';
+} from '../../components/api/api';
+import {generateCommand} from '../utils/generatorFn';
+import {createMotorRunCmdsWithArray} from '../utils/serialDetail';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {io} from 'socket.io-client';
-import useUart from '../../hooks/useUart';
+import useUart from '../hooks/useUart';
 
-export async function initializePort(setSerialPort = () => {}) {
-  try {
-    const devices = await UsbSerialManager.list();
-
-    const result = devices.filter(obj => {
-      const strId = obj.deviceId.toString();
-      return strId.startsWith('7');
-    });
-    // console.log(devices)
-    if (result && result.length > 0) {
-      const granted = await UsbSerialManager.tryRequestPermission(
-        result[0].deviceId,
-      );
-      if (granted) {
-        const port = await UsbSerialManager.open(result[0].deviceId, {
-          baudRate: 9600,
-          parity: Parity.None,
-          dataBits: 8,
-          stopBits: 1,
-        });
-        setSerialPort(port);
-      }
-    }
-  } catch (error) {
-    console.error('Failed to initialize serial port:', error);
-  }
-}
-
-const CheckoutNepal = ({route, setRoute}) => {
+const Checkout = ({route, setRoute}) => {
   const [qrCodeData, setQrCodeData] = useState('');
   const [orderId, setOrderId] = useState('');
   const [wsUrl, setWsUrl] = useState('');
@@ -67,77 +33,19 @@ const CheckoutNepal = ({route, setRoute}) => {
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [countdownText, setCountdownText] = useState('Time remaining');
   const [countdown, setCountdown] = useState(120);
-  const [serialPort, setSerialPort] = useState(null);
-  const [connectionAttempts, setConnectionAttempts] = useState(0);
   const [showReview, setShowReview] = useState(false);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
-  const [socket, setSocket] = useState(null);
-  const [success, setSuccess] = useState(false)
-  const [amount, setAmount] = useState(false)
-   const MAX_RETRY_ATTEMPTS = 3;
-   
+  const [error, setError] = useState("")
+
   const {
     isConnected,
     sendMessage,
     handleRefresh,
   } = useUart();
 
-
   // Add a delay utility function
   const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-  // Improved serial communication function with retries
-  const sendDataWithRetries = async (data, maxRetries = 3) => {
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        // Initialize port if not connected
-        if (!serialPort || attempt > 0) {
-          await delay(1000); // Add delay before reconnection attempt
-          const devices = await UsbSerialManager.list();
-          if (!devices || devices.length === 0) continue;
-
-          const granted = await UsbSerialManager.tryRequestPermission(
-            devices[0].deviceId,
-          );
-          if (!granted) continue;
-
-          const port = await UsbSerialManager.open(devices[0].deviceId, {
-            baudRate: 9600,
-            parity: Parity.None,
-            dataBits: 8,
-            stopBits: 1,
-          });
-          setSerialPort(port);
-        }
-
-        // Send data with delay
-        await delay(500);
-        const hexData = stringToHex(generateCommand(data));
-        await serialPort.send(hexData);
-        console.log('Data sent successfully:', hexData);
-        return true;
-      } catch (error) {
-        console.error(`Attempt ${attempt + 1} failed:`, error);
-        if (serialPort) {
-          try {
-            await serialPort.close();
-          } catch (e) {
-            console.error('Error closing port:', e);
-          }
-        }
-        setSerialPort(null);
-
-        // if (attempt === maxRetries) {
-        //   Alert.alert(
-        //     'Communication Error',
-        //     'Failed to send data to device. Please try again.',
-        //   );
-        //   return false;
-        // }
-      }
-    }
-    return false;
-  };
 
   const {
     data: payDetails,
@@ -148,103 +56,99 @@ const CheckoutNepal = ({route, setRoute}) => {
     queryFn: async () => {
       const res = await getFonePayDetails();
       await AsyncStorage.setItem("fonepayDetails", JSON.stringify(res.data.data))
-      if (!res.data.data.nepalPayDetails){
-        setRoute("checkout")
+      if (!res.data.data.fonePayDetails){
+        setRoute("foneUart")
       }
       return res.data.data;
     },
   });
 
   const paymentMutation = useMutation({
-    mutationFn: async () => {
-      const res = await initiateNepalPay()
-      // console.log(res.data.data)
-      return res
-    },
+    mutationFn: initiatePayment,
     onSuccess: async response => {
-      const qrData = response.data.data;
-      // console.log("data", qrData.totalAmount)
-      setAmount(qrData?.totalAmount)
+      const data = response.data.data;
+      console.log(data)
+      setOrderId(data.prn);
+      setWsUrl(data.wsUrl);
 
-      if (qrData.data.qrString) {
-        setQrCodeData(qrData.data.qrString);
+      if (data.qrMessage) {
+        setQrCodeData(data.qrMessage);
 
-        // Initialize Socket.IO connection
-        const socket = io("https://vendingao-api.xyz");
-        setSocket(socket);
+        const ws = new WebSocket(data.wsUrl);
 
-        // Register machine
-        const machineId = await AsyncStorage.getItem("machineId");
-        // console.log("Registering machine with ID:", machineId);
-        socket.emit("register", machineId); // Send machineId directly, not as an object
+        ws.onmessage = async event => {
+          const jsonData = JSON.parse(event.data);
+          console.log('Received WebSocket message:', jsonData);
 
-        // Listen for payment completion
-        socket.on("paymentCompleted", async (message) => {
-          console.log('Payment completed:', message);
-          let paymentData= JSON.parse(message)
-          console.log('Payment amount:', paymentData?.amount, 'Expected amount:', qrData.totalAmount);
-          
-          // Check if the payment amount matches
-          if (Number(paymentData.amount) === Number(qrData.totalAmount)) {
-            console.log("Payment amount matches, proceeding with payment completion");
-            setPaymentSuccess(true);
-            setIsScanned(true);
+          if (jsonData.transactionStatus) {
+            const status = JSON.parse(jsonData.transactionStatus);
 
-            try {
-              const data = await finalizePayment();
-              setPaymentSuccess(true);
-              setCountdownText('Returning to home in');
-              setShowReview(true);
-
-              // Use improved serial communication function
-              await delay(1000); // Add delay before sending data
-              console.log(data.data?.data?.pnAndQntyArrForNewMod);
-              const sendSuccess = await sendDataArray3(
-                data?.data?.data?.pnAndQntyArrForNewMod,
-              );
-              
-              if (sendSuccess) {
-                setSuccess(true)
-                setCountdown(10);
-                socket.disconnect();
-                // Show review for 10 seconds before redirecting
-                setTimeout(() => {
-                  setShowReview(false);
-                  setRoute('home');
-                }, 10000);
-              } else {
-                // Handle failed communication
-                Alert.alert(
-                  'Error',
-                  'Failed to communicate with device. Your payment was successful, but please contact support.',
-                  [
-                    {
-                      text: 'Return to Home',
-                      onPress: () => setRoute('home'),
-                    },
-                  ],
-                );
-              }
-            } catch (error) {
-              console.error('Error in payment process:', error);
+            if (status.qrVerified) {
+              setIsScanned(true);
             }
-          } else {
-            console.log('Payment amount mismatch:', {
-              receivedAmount: paymentData.amount,
-              expectedAmount: qrData.totalAmount
-            });
-          }
-        });
 
-        socket.on("connect_error", (error) => {
-          console.error('Socket connection error:', error);
-        });
+            if (status.paymentSuccess) {
+              setPaymentSuccess(true);
+
+              try {
+                console.log("object")
+                const payData = await finalizePayment();
+                setPaymentSuccess(true);
+                setCountdownText('Returning to home in');
+                setShowReview(true);
+
+                // Use improved UART communication function
+                await delay(1000); // Add delay before sending data
+                console.log("payData", payData)
+                const sendSuccess = await sendDataArray3(
+                  payData?.data?.data?.mappedArray,
+                );
+                if (sendSuccess) {
+                  setCountdown(10);
+                  ws.close();
+                  // Show review for 10 seconds before redirecting
+                  setTimeout(() => {
+                    setShowReview(false);
+                    setRoute('home');
+                  }, 10000);
+                } else {
+                  // Handle failed communication
+                  Alert.alert(
+                    'Error',
+                    'Failed to communicate with device. Your payment was successful, but please contact support.',
+                    [
+                      {
+                        text: 'Return to Home',
+                        onPress: () => setRoute('home'),
+                      },
+                    ],
+                  );
+                }
+              } catch (error) {
+                console.error('Error in payment process:', error);
+              }
+            }
+          }
+        };
+
+        ws.onerror = error => {
+          console.error('WebSocket error:', error);
+        };
       }
     },
     onError: error => {
       console.error('Error initiating payment:', error);
     },
   });
+
+  
+  useEffect(() => {
+    if (countdown <= 90 && countdown >= 5 && paymentMutation.isPending) {
+      setError("Error generating QR");
+      setCountdown(4);
+    }
+  }, [countdown, paymentMutation?.isPending]);
+
 
   const {
     data: cartItems,
@@ -259,31 +163,22 @@ const CheckoutNepal = ({route, setRoute}) => {
     },
   });
 
-  // Initialize serial port when component mounts
+  // Initialize countdown timer
   useEffect(() => {
-    initializePort(setSerialPort);
-    paymentMutation.mutate();
-
     const interval = setInterval(() => {
       setCountdown(prev => prev - 1);
     }, 1000);
 
     return () => {
       clearInterval(interval);
-      if (serialPort) {
-        serialPort.close().catch(console.error);
-      }
     };
   }, []);
 
-  // Cleanup socket connection on component unmount
+  // Initialize payment when component mounts
   useEffect(() => {
-    return () => {
-      if (socket) {
-        socket.disconnect();
-      }
-    };
-  }, [socket]);
+    console.log('Initializing payment...');
+    paymentMutation.mutate();
+  }, []);
 
   function stringToHex(str) {
     let hex = '';
@@ -294,12 +189,6 @@ const CheckoutNepal = ({route, setRoute}) => {
     return hex;
   }
 
-  const sendDataArray = async (hexStringArr) => {
-    console.log("hell")
-    let hexStringArray = createMotorRunCmdsWithArray(hexStringArr);
-    console.log(JSON.stringify(hexStringArray));
-  }
-
   async function sendDataArray3(hexStringArr) {
     if (!isConnected) {
       Alert.alert('Error', 'No UART connection available');
@@ -307,34 +196,55 @@ const CheckoutNepal = ({route, setRoute}) => {
     }
     let hexStringArray = createMotorRunCmdsWithArray(hexStringArr);
     console.log('Sending hex string array:', hexStringArray);
+    
     try {
-      for (let i = 0; i < hexStringArray.length; i++) {
-        // Get the current hex string
-        const hexString = hexStringArray[i];
-        
-        // Remove any non-hex characters and make uppercase
-        const clean = hexString.replace(/[^0-9a-fA-F]/g, '').toUpperCase();
-        
-        // Ensure even number of characters
-        const even = clean.length % 2 === 0 ? clean : '0' + clean;
-        
-        // Split into two-character chunks and join with spaces
-        let message = even.match(/.{1,2}/g)?.join(' ') ?? '';
-        console.log('Sending message:', message);
-        
-        let timeoutTime = 15000
-        
-        await sendMessage(message);
-                // Don't wait after the last string
-                if (i < hexStringArray.length - 1) {
-                  // Wait for 3 seconds before sending next string
-                  await new Promise(resolve => setTimeout(resolve, timeoutTime));
-                  console.log("next one")
-                }
-      }
+      // Create a promise that will resolve when all messages are sent
+      const sendAllMessages = async () => {
+        for (let i = 0; i < hexStringArray.length; i++) {
+          const hexString = hexStringArray[i];
+          
+          // Remove any non-hex characters and make uppercase
+          const clean = hexString.replace(/[^0-9a-fA-F]/g, '').toUpperCase();
+          
+          // Ensure even number of characters
+          const even = clean.length % 2 === 0 ? clean : '0' + clean;
+          
+          // Split into two-character chunks and join with spaces
+          let message = even.match(/.{1,2}/g)?.join(' ') ?? '';
+          console.log(`Sending message ${i + 1}/${hexStringArray.length}:`, message);
+          
+          // Add initial delay before sending
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          const sendResult = await sendMessage(message);
+          if (!sendResult) {
+            console.error(`Failed to send message ${i + 1}`);
+            return false;
+          }
+          
+          // Wait between commands
+          if (i < hexStringArray.length - 1) {
+            console.log(`Waiting 5 seconds before next command...`);
+            await new Promise(resolve => setTimeout(resolve, 5000));
+          }
+        }
+        console.log("All commands sent successfully");
+        return true;
+      };
+
+      // Start sending messages and don't wait for it to complete
+      sendAllMessages().then(success => {
+        if (success) {
+          console.log("All messages sent successfully");
+        } else {
+          console.error("Failed to send all messages");
+        }
+      });
+
+      // Return true immediately to allow navigation
       return true;
     } catch (error) {
-      console.error('Error sending data:', error);
+      console.error('Error in sendDataArray3:', error);
       return false;
     }
   }
@@ -342,6 +252,7 @@ const CheckoutNepal = ({route, setRoute}) => {
 
     if (countdown <= 0) {
       clearCart().then(()=>{
+  
         setRoute('home');
       })
     }
@@ -356,6 +267,12 @@ const CheckoutNepal = ({route, setRoute}) => {
           <ArrowLeft color="#000" size={24} />
           <Text style={styles.buttonText}>Back</Text>
         </TouchableOpacity>
+
+        {/* <TouchableOpacity onPress={()=>{
+          sendDataArray3([1,2])
+        }}>
+          <Text>Test</Text>
+        </TouchableOpacity> */}
 
         <TouchableOpacity
           onPress={() => setRoute('home')}
@@ -394,55 +311,61 @@ const CheckoutNepal = ({route, setRoute}) => {
         <View style={styles.contentContainer}>
           <View style={styles.paymentSection}>
             <Text style={styles.paymentText}>We Accept</Text>
-          <View style={{flexDirection: 'row', gap: 12}}>
-            {payDetails?.nepalPayDetails && (
-              <TouchableOpacity
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 16,
-                  borderRadius: 12,
-                  borderWidth: 2,
-                  borderColor: '#f97316',
-                  backgroundColor: '#fff7ed',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
-                disabled={success}
-                onPress={() => setRoute('nepalCheckout')}>
-                <Image
-                  style={{width: 120, height: 50}}
-                  source={{
-                    uri: 'https://files.catbox.moe/qhwpwg.png',
+            <View style={{flexDirection: 'row', gap: 12}}>
+              {payDetails?.nepalPayDetails && (
+                <TouchableOpacity
+                  style={{
+                    paddingVertical: 8,
+                    paddingHorizontal: 16,
+                    borderRadius: 12,
+                    backgroundColor: '#e2e8f0',
+                    justifyContent: 'center',
+                    alignItems: 'center',
                   }}
-                  resizeMode="contain"
-                />
-              </TouchableOpacity>
-            )}
-            {payDetails?.merchantDetails && (
-              <TouchableOpacity
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 16,
-                  borderRadius: 12,
-                  backgroundColor: '#e2e8f0',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
-                disabled={success}
-                onPress={() => setRoute('checkout')}>
-                <Image
-                  style={{width: 120, height: 50}}
-                  source={{
-                    uri: 'https://login.fonepay.com/assets/img/fonepay_payments_fatafat.png',
+                  onPress={() => setRoute('nepalUart')}>
+                  <Image
+                    style={{width: 120, height: 50}}
+                    source={{
+                      uri: 'https://files.catbox.moe/qhwpwg.png',
+                    }}
+                    resizeMode="contain"
+                  />
+                </TouchableOpacity>
+              )}
+              {payDetails?.merchantDetails && (
+                <TouchableOpacity
+                  style={{
+                    paddingVertical: 8,
+                    paddingHorizontal: 16,
+                    borderRadius: 12,
+                    borderWidth: 2,
+                    borderColor: '#f97316',
+                    backgroundColor: '#fff7ed',
+                    justifyContent: 'center',
+                    alignItems: 'center',
                   }}
-                  resizeMode="contain"
-                />
-              </TouchableOpacity>
-            )}
-          </View>
+                  onPress={() => setRoute('foneUart')}>
+                  <Image
+                    style={{width: 120, height: 50}}
+                    source={{
+                      uri: 'https://login.fonepay.com/assets/img/fonepay_payments_fatafat.png',
+                    }}
+                    resizeMode="contain"
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
-          {paymentSuccess ? (
+          {error ? (
+            <View style={styles.errorContainer}>
+              <View style={styles.errorContent}>
+                <AlertCircle size={48} color="#dc2626" style={{alignSelf: 'center', marginBottom: 8}} />
+                <Text style={styles.errorTitle}>QR Generation Failed</Text>
+                <Text style={styles.errorMessage}>{error}</Text>
+              </View>
+            </View>
+          ) : paymentSuccess ? (
             <View style={styles.messageContainer}>
               <Text style={styles.successText}>Payment Successful!</Text>
               <Text style={styles.messageText}>
@@ -514,8 +437,7 @@ const CheckoutNepal = ({route, setRoute}) => {
                 Dispense will start automatically after successful payment
               </Text>
               <Text style={styles.amount}>
-                Nrs. {amount || '0'}
-                {/* Nrs. {paymentMutation?.data?.data?.data?.amount || '0'} */}
+                Nrs. {paymentMutation?.data?.data?.data?.amount || '0'}
               </Text>
               <View style={styles.qrCodeContainer}>
                 <QRCode value={qrCodeData} size={200} />
@@ -832,4 +754,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CheckoutNepal;
+export default Checkout;

@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { Text, Card, Title, ActivityIndicator } from 'react-native-paper';
 import { useQuery } from '@tanstack/react-query';
-import { getMachineId, getVendingMachinesByOwner } from '../../components/api/api';
+import { getMachineId, getVendingMachinesByOwner } from '../../../components/api/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ChooseMachine = ({ setRoute }) => {

@@ -141,6 +141,17 @@ export const getVendingMachinesByOwner = async () => {
   }); // Include machineId in the request
 };
 
+export const getMachineDetails = async (machineId) =>{
+  return await apiClient.get(`/vending-machines/${machineId}`)
+}
+
+export const getMachineLocation = async (machineId)=>{
+  return await apiClient.get(`/vending-machines/location/${machineId}`)
+}
+
+export const uploadMachineLocation = async (machineId, data)=>{
+  return await apiClient.patch(`/vending-machines/location/${machineId}`, data)
+}
 
 export const getOffer = async () =>{
   return await apiClient.get(`/offer/machine/${machineId}`)
@@ -165,3 +176,7 @@ export const downloadApp = async ()=>{
 export const getappVersion = async() => {
   return await apiClient.get("/appVersion/one")
 } 
+
+export const checkForUpdate = async (appName, version)=>{
+  return await apiClient.post(`/appVersion/checkForUpdates`, {appName, version})
+}

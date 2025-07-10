@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import {Text, Button, TextInput, Card} from 'react-native-paper';
 import {ArrowLeft, RefreshCw, Trash2} from 'lucide-react-native';
-import useUart from '../hooks/useUart';
+import useUart from '../../hooks/useUart';
 
 const UartScreen = ({setRoute}) => {
   const [message, setMessage] = useState('');

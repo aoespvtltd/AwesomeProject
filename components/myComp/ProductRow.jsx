@@ -68,7 +68,7 @@ export default function ProductRow({ product }) {
       <DataTable.Cell style={{ flex: 1.5 }}>
         <View style={styles.stockControl}>
           <IconButton
-            icon={() => <Minus size={16} color="#6366f1" />}
+            icon={() => <Minus size={20} color="#ff6600" />}
             onPress={handleDecrement}
             disabled={localStock <= 0}
             style={styles.stockButton}
@@ -89,7 +89,7 @@ export default function ProductRow({ product }) {
             /> */}
           </View>
           <IconButton
-            icon={() => <Plus size={16} color="#6366f1" />}
+            icon={() => <Plus size={20} color="#ff6600" />}
             onPress={handleIncrement}
             disabled={localStock >= product.stockLimit}
             style={styles.stockButton}

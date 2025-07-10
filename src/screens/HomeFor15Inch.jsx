@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useCallback, useMemo, memo} from 'react';
+import React, {useState, useEffect, useCallback, useMemo, memo, useRef} from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  Animated,
 } from 'react-native';
 import {useQuery, useMutation, useQueryClient} from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -33,12 +34,14 @@ import NetInfo from '@react-native-community/netinfo';
 import {appVersion, columns} from '../constants';
 import {FlashList} from '@shopify/flash-list';
 import ErrorPage from '../../components/myComp/ErrorPage';
-import {Cross, QrCode, Trash2, X} from 'lucide-react-native';
+import {Cross, PhoneForwardedIcon, QrCode, ShoppingCart, Trash2, X} from 'lucide-react-native';
 import {initializePort} from './Checkout';
 import {Badge} from 'react-native-paper';
+import DebounceTouchableOpacity from '../../components/myComp/DebounceTouchableOpacity';
+import updateUtil from '../utils/updateUtil';
 // Move these outside component to prevent recreation
 const {width} = Dimensions.get('window');
-const productWidth = (width - 18) / columns;
+const productWidth = (width - 8 ) / columns;
 
 function VendingMachine({route, setRoute}) {
   // State management for various features
@@ -51,6 +54,7 @@ function VendingMachine({route, setRoute}) {
   const [isKeypadVisible, setIsKeypadVisible] = useState(false); // Keypad visibility
   const [serialPort, setSerialPort] = useState(null);
   const [deletingItemId, setDeletingItemId] = useState(null);
+  const scaleValue = useRef(new Animated.Value(1)).current;
   // const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -76,10 +80,6 @@ function VendingMachine({route, setRoute}) {
     return idd;
   }
 
-  const getAllKeys = async ()=>{
-    console.log(await AsyncStorage.getAllKeys())
-    console.log(await AsyncStorage.getItem("codes"))
-  }
 
   // Query hooks for fetching products and cart items
   const {
@@ -117,7 +117,6 @@ function VendingMachine({route, setRoute}) {
     queryKey: ['cartData'],
     queryFn: async () => {
       const data = await getCartItems();
-      console.log('query', data?.data?.data);
       return data?.data?.data;
     },
   });
@@ -238,7 +237,6 @@ function VendingMachine({route, setRoute}) {
     cartRefetch();
     initializePort();
     getMachineId();
-    getAllKeys()
     const unsubscribe = NetInfo.addEventListener(state => {
       setIsConnected(state.isConnected);
     });
@@ -264,12 +262,43 @@ function VendingMachine({route, setRoute}) {
   const handleClearCart = async () => {
     await clearCartMutation.mutate();
     await handleProductRefetch();
-    console.log('cartData', cartData);
   };
 
   // Update cart count handler
-  const handleCartUpdate = useCallback((increment = true) => {
-    setCartLength(prev => (increment ? prev + 1 : prev - 1));
+  const handleCartUpdate = useCallback(
+    (increment = true) => {
+      setCartLength(prev => (increment ? prev + 1 : prev - 1));
+      scaleValue.setValue(1.2);
+      Animated.spring(scaleValue, {
+        toValue: 1,
+        friction: 3,
+        useNativeDriver: true,
+      }).start();
+    },
+    [scaleValue],
+  );
+
+  useEffect(() => {
+    const checkAndDownload = async () => {
+      try {
+        const update = await updateUtil.checkForUpdate();
+        console.log("update available")
+        if (update.available) {
+          await updateUtil.downloadApk(update.appUrl);
+        } else {
+          // No update available, check if APK file exists and delete it
+          const apkInfo = await updateUtil.getApkInfo();
+          if (apkInfo.exists) {
+            await updateUtil.cleanupApk();
+            console.log('Old APK deleted since no update is available');
+          }
+        }
+      } catch (e) {
+        // Optionally log error, but do not alert user
+        console.log('Silent update check/download failed:', e);
+      }
+    };
+    checkAndDownload();
   }, []);
 
   // Render main component
@@ -284,15 +313,16 @@ function VendingMachine({route, setRoute}) {
 
       {/* Navigation bar with logo and cart */}
       <View style={styles.navbar}>
-        <TouchableOpacity
+        <DebounceTouchableOpacity
           onPress={() => setRoute('home')}
           style={styles.logoContainer}>
           <Image
-            source={{uri: 'https://files.catbox.moe/xw6iaj.png'}}
+            // source={{uri: 'https://files.catbox.moe/xw6iaj.png'}}
+            source={require("../assets/lphaVend.png")}
             style={styles.logo}
           />
           {/* <Text style={styles.title}>Vending</Text> */}
-        </TouchableOpacity>
+        </DebounceTouchableOpacity>
 
         <View style={styles.navButtons}>
           {cartLength > 0 && (
@@ -308,19 +338,51 @@ function VendingMachine({route, setRoute}) {
               )}
             </TouchableOpacity>
           )}
-          <TouchableOpacity
-            onPress={() => setRoute('carts')}
-            style={{padding: 10}}>
-            <Image
-              source={{uri: 'https://files.catbox.moe/qb07e6.png'}}
-              style={[styles.cartIcon]}
-            />
-            {cartLength > 0 && (
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>{cartLength}</Text>
+          <Animated.View style={{transform: [{scale: scaleValue}]}}>
+            <DebounceTouchableOpacity
+              onPress={() => setRoute('carts')}
+              style={{
+                flexDirection: 'row',
+                borderRadius: 8,
+                overflow: 'hidden',
+              }}>
+              <View
+                style={{
+                  backgroundColor: '#ff6600',
+                  paddingHorizontal: 16,
+                  paddingVertical: 7,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 2,
+                }}>
+                <ShoppingCart color="white" size={18} strokeWidth={3} />
+                <Text
+                  style={{color: 'white', fontWeight: 'bold', fontSize: 10}}>
+                  Cart
+                </Text>
               </View>
-            )}
-          </TouchableOpacity>
+              {!!cartLength && (
+                <View
+                  style={{
+                    backgroundColor: '#2f2f2f',
+                    paddingHorizontal: 8,
+                    paddingVertical: 2,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minWidth: 40,
+                  }}>
+                  <Text
+                    style={{
+                      color: 'white',
+                      fontSize: 20,
+                      fontWeight: 'bold',
+                    }}>
+                    {cartLength}
+                  </Text>
+                </View>
+              )}
+            </DebounceTouchableOpacity>
+          </Animated.View>
         </View>
       </View>
 
@@ -359,8 +421,8 @@ function VendingMachine({route, setRoute}) {
             estimatedItemSize={200}
             numColumns={columns}
             keyExtractor={item => item._id}
-            contentContainerStyle={styles.productList}
-            windowSize={3}
+            contentContainerStyle={{paddingHorizontal: 8, backgroundColor: "white"}}
+            windowSize={4}
           />
         ) : (
           <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
@@ -438,7 +500,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: 'white',
-    padding: 0,
+    paddingHorizontal: 0,
     margin: 0,
   },
   offlineBanner: {
@@ -482,13 +544,14 @@ const styles = StyleSheet.create({
   navButtons: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8
   },
   clearButton: {
     backgroundColor: '#f97316',
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderRadius: 8,
-    marginRight: 16,
+    // marginRight: 12,
   },
   clearButtonText: {
     color: 'white',
@@ -518,7 +581,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   productItem: {
-    margin: 8,
+    margin: 4,
     justifyContent: 'center',
     alignItems: 'center',
   },

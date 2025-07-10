@@ -7,7 +7,7 @@ import {
   Text,
   Alert,
 } from 'react-native';
-import { loginUser } from '../../components/api/api';
+import { loginUser } from '../../../components/api/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const Login = ({ setRoute }) => {

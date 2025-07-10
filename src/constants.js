@@ -1,4 +1,4 @@
-export const columns = 3
+export const columns = 4
 // export const machineId = "66d80057da82f664156f58b0"
 // export const machineId = "66d80057da82f664156f58b0"
 // export const machineId = "678f77603b88d37654487e4d"

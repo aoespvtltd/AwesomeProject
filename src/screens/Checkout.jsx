@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import {Button, Text, Title, Card, Paragraph} from 'react-native-paper';
 import {useMutation, useQuery} from '@tanstack/react-query';
-import {ArrowLeft, Home, Loader2} from 'lucide-react-native';
+import {ArrowLeft, Home, Loader2, AlertCircle} from 'lucide-react-native';
 import QRCode from 'react-native-qrcode-svg';
 import LoadingComp from '../../components/myComp/LoadingComp';
 import {
@@ -28,6 +28,7 @@ import {
 import {generateCommand} from '../utils/generatorFn';
 import {createMotorRunCmdsWithArray} from '../utils/serialDetail';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 export async function initializePort(setSerialPort = () => {}) {
   try {
@@ -69,6 +70,7 @@ const Checkout = ({route, setRoute}) => {
   const [connectionAttempts, setConnectionAttempts] = useState(0);
   const [showReview, setShowReview] = useState(false);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [error, setError] = useState("")
   const MAX_RETRY_ATTEMPTS = 3;
 
   // Add a delay utility function
@@ -170,16 +172,17 @@ const Checkout = ({route, setRoute}) => {
               setPaymentSuccess(true);
 
               try {
-                await finalizePayment();
+                const finalData = await finalizePayment();
                 setPaymentSuccess(true);
                 setCountdownText('Returning to home in');
                 setShowReview(true);
 
                 // Use improved serial communication function
                 await delay(1000); // Add delay before sending data
-                console.log(data)
+                console.log(finalData?.data?.data?.mappedArray)
+                
                 const sendSuccess = await sendDataArray3(
-                  data?.pnAndQntyArrForNewMod,
+                  finalData?.data?.data?.mappedArray,
                 );
                 if (sendSuccess) {
                   setCountdown(10);
@@ -250,6 +253,14 @@ const Checkout = ({route, setRoute}) => {
     };
   }, []);
 
+  
+  useEffect(() => {
+    if (countdown <= 90 && paymentMutation.isPending) {
+      setError("Error generating QR");
+      setCountdown(4);
+    }
+  }, [countdown, paymentMutation.isPending]);
+
   function stringToHex(str) {
     let hex = '';
     for (let i = 0; i < str.length; i++) {
@@ -259,13 +270,14 @@ const Checkout = ({route, setRoute}) => {
     return hex;
   }
 
+
   async function sendDataArray3(hexStringArr) {
+    let hexStringArray = createMotorRunCmdsWithArray(hexStringArr);
     if (!serialPort) {
       Alert.alert('Error', 'No serial connection available');
       return;
     }
-    let hexStringArray = createMotorRunCmdsWithArray(hexStringArr);
-    console.log(serialPort);
+    console.log(serialPort, hexStringArray);
     try {
       for (let i = 0; i < hexStringArray.length; i++) {
         // Send current hex string
@@ -276,7 +288,6 @@ const Checkout = ({route, setRoute}) => {
         await serialPort.send(hexString);
 
         let timeoutTime = 5000;
-
         // Don't wait after the last string
         if (i < hexStringArray.length - 1) {
           // Wait for 3 seconds before sending next string
@@ -296,6 +307,8 @@ const Checkout = ({route, setRoute}) => {
         setRoute('home');
       })
     }
+
+
 
   return (
     <View style={styles.mainContainer}>
@@ -352,7 +365,7 @@ const Checkout = ({route, setRoute}) => {
           <View style={styles.paymentSection}>
             <Text style={styles.paymentText}>We Accept</Text>
             <View style={{flexDirection: 'row', gap: 12}}>
-              {payDetails?.nepalPayDetails && (
+              {payDetails?.nepalPayDetails && !paymentSuccess && (
                 <TouchableOpacity
                   style={{
                     paddingVertical: 8,
@@ -372,7 +385,7 @@ const Checkout = ({route, setRoute}) => {
                   />
                 </TouchableOpacity>
               )}
-              {payDetails?.merchantDetails && (
+              {payDetails?.merchantDetails && !paymentSuccess && (
                 <TouchableOpacity
                   style={{
                     paddingVertical: 8,
@@ -397,7 +410,15 @@ const Checkout = ({route, setRoute}) => {
             </View>
           </View>
 
-          {paymentSuccess ? (
+          {error ? (
+            <View style={styles.errorContainer}>
+              <View style={styles.errorContent}>
+                <AlertCircle size={48} color="#dc2626" style={{alignSelf: 'center', marginBottom: 8}} />
+                <Text style={styles.errorTitle}>QR Generation Failed</Text>
+                <Text style={styles.errorMessage}>{error}</Text>
+              </View>
+            </View>
+          ) : paymentSuccess ? (
             <View style={styles.messageContainer}>
               <Text style={styles.successText}>Payment Successful!</Text>
               <Text style={styles.messageText}>
@@ -411,6 +432,7 @@ const Checkout = ({route, setRoute}) => {
                     <TouchableOpacity
                       style={[styles.reviewButton, styles.badButton]}
                       onPress={() => {
+                        setCountdown(2)
                         setReviewSubmitted(true);
                         // Here you can add API call to submit the review
                       }}>
@@ -420,6 +442,7 @@ const Checkout = ({route, setRoute}) => {
                     <TouchableOpacity
                       style={[styles.reviewButton, styles.averageButton]}
                       onPress={() => {
+                        setCountdown(2)
                         setReviewSubmitted(true);
                         // Here you can add API call to submit the review
                       }}>
@@ -429,6 +452,7 @@ const Checkout = ({route, setRoute}) => {
                     <TouchableOpacity
                       style={[styles.reviewButton, styles.goodButton]}
                       onPress={() => {
+                        setCountdown(2)
                         setReviewSubmitted(true);
                         // Here you can add API call to submit the review
                       }}>

@@ -8,11 +8,14 @@ import {
   Text,
   Keyboard,
   Alert,
+  Image,
 } from "react-native";
 import { FAB, Icon } from "react-native-paper";
 import { addToCartByPN } from "../api/api";
 import { Trash, Trash2 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import DebounceTouchableOpacity from "./DebounceTouchableOpacity";
+import CustomDialog from './CustomDialog';
 
 // Define an object that maps key combinations to routes
 // const secretCodes = {
@@ -24,11 +27,17 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 // };
 
 // const secretCodes = {
+//   // "fillStock": "987",
 //   "fillStock": "9876543210",
 //   "findSerial": "9876543211",
 //   "login": "9876543212",
 //   "machines": "9876543213",
-//   "uart": "9876543214"
+//   "uart": "9876543214",
+//   "testPage": "9876543215",
+//   "wifi": "9876543216",
+//   "ad": "9876543217",
+//   "settings": "9876543218",
+//   "findSerialUart": "987",
 // };
 
 const Keypad = ({
@@ -116,18 +125,44 @@ const Keypad = ({
       .catch((error) => console.log(error));
   };
 
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [pendingRoute, setPendingRoute] = useState(null);
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+
   const handleSecretCode = (value) => {
     // Find the route that matches the input value
     const matchingRoute = Object.entries(secretCodes).find(([_, code]) => code === value)?.[0];
     if (matchingRoute) {
-      setRoute(matchingRoute); // Navigate to the corresponding route
-      setInputValue(""); // Clear the input
+      setPendingRoute(matchingRoute);
+      setShowPasswordDialog(true);
+      setPassword('');
+      setPasswordError('');
+      setInputValue(''); // Optionally clear input
+      return;
+    }
+  };
+
+  const handlePasswordConfirm = async () => {
+    let storedPassword = await AsyncStorage.getItem('keypadPassword');
+    if (!storedPassword) storedPassword = 'password123';
+    if (password === storedPassword) {
+      setShowPasswordDialog(false);
+      setPassword('');
+      setPasswordError('');
+      if (pendingRoute) {
+        setRoute(pendingRoute);
+        setPendingRoute(null);
+      }
+    } else {
+      setPasswordError('Incorrect password');
     }
   };
 
   return (
     <View style={styles.keypadContainer}>
-    <FAB
+    {/* <FAB
       onPress={toggleKeypad}
       style={{
         position: "absolute",
@@ -135,15 +170,34 @@ const Keypad = ({
         right: 0,
         bottom: 0,
         borderRadius: "50%",
-        backgroundColor: "#f26c18",
+        backgroundColor: "#ff6600",
       }}  
       icon={
         isKeypadVisible
-          ? 
-          { uri: "https://files.catbox.moe/tmdz0g.png" }
-          : { uri: "https://files.catbox.moe/df4lp3.png" }
+          ? require("../../src/assets/TrashImage.png") : require("../../src/assets/keypadImage.png")
       }
-    />
+    /> */}
+        <TouchableOpacity
+      onPress={toggleKeypad}
+      style={{
+        position: "absolute",
+        margin: 16,
+        right: 0,
+        bottom: 0,
+        borderRadius: "50%",
+        backgroundColor: "#ff6600",
+        alignItems: "center", 
+        justifyContent: "center",
+        padding: 12
+      }}
+    >
+      <Image source={isKeypadVisible
+          ? require("../../src/assets/trash-2.png") : require("../../src/assets/keypadImage.png")
+      }
+      style={{tintColor: "#f2f2f2", width: 24, height: 24, paddingTop: 12 }}
+      />
+      {/* <Text>HJello</Text> */}
+    </TouchableOpacity>
     {/* {inputValue == "9876543210" && (<FAB
       onPress={()=>setRoute("fillstock")}
       style={{
@@ -152,7 +206,7 @@ const Keypad = ({
         bottom: 48,
         alignSelf:"center",
         borderRadius: "5%",
-        backgroundColor: "#f26c18",
+        backgroundColor: "#ff6600",
       }}
       label="Fill Stock"
     />)} */}
@@ -160,14 +214,22 @@ const Keypad = ({
 
       {isKeypadVisible && (
         <View style={styles.inputWithCart}>
-          <FAB
+          {/* <FAB
             onPress={buyByProductNumber}
-            // disabled={filteredProducts.length === 1 || filteredProducts[0]?.stock === 0}
             disabled={filteredProducts.length !== 1}
-            style={[(filteredProducts.length !== 1 && qty !== 0) ? styles.disabledCartButton : styles.cartButton,]}
-            icon={{uri: "https://files.catbox.moe/qb07e6.png"}}
+            style={[(filteredProducts.length !== 1 && qty !== 0) ? styles.disabledCartButton : styles.cartButton]}
+            icon={require("../../src/assets/cartButton.png")}
             label="Buy Now"
-          />
+          ></FAB> */}
+          <DebounceTouchableOpacity 
+            onPress={buyByProductNumber}
+            disabled={filteredProducts.length !== 1}
+            style={[(filteredProducts.length !== 1 && qty !== 0) ? styles.disabledCartButton : styles.cartButton, {flexDirection: "row", padding: 12, gap: 12, width: 120}]}
+            
+          >
+            <Image source={require("../../src/assets/cartButton.png")} style={{width: 30, height: 30, tintColor: "#f2f2f2"}}/>
+            <Text style={{color: "#f2f2f2", fontWeight: "bold"}}>Buy now</Text>
+          </DebounceTouchableOpacity>
           {/* <Icon source={"cart"} size={30}/> */}
           <TextInput
             style={styles.textBarContainer}
@@ -192,17 +254,51 @@ const Keypad = ({
       )}
 
       {/* Your existing keypad UI */}
-      {Object.entries(secretCodes).map(([route, code]) => (
-        inputValue === code && (
-          <FAB
+      {Object.entries(secretCodes).map(([route, code]) =>
+        inputValue === code ? (
+          <DebounceTouchableOpacity
             key={code}
             onPress={() => handleSecretCode(code)}
-            style={styles.secretButton}
-            icon={{ uri: "https://files.catbox.moe/df4lp3.png" }}
-            label={`Go to ${route}`}
-          />
-        )
-      ))}
+            style={styles.secretButton}>
+            <Image
+              source={require("../../src/assets/keypadImage.png")}
+              style={{width: 24, height: 24, marginRight: 8, tintColor: "#f2f2f2"}}
+            />
+            <Text style={{color: '#f2f2f2', fontWeight: 'bold'}}>
+              Go to {route}
+            </Text>
+          </DebounceTouchableOpacity>
+        ) : null,
+      )}
+      {/* Password Dialog */}
+      <CustomDialog
+        visible={showPasswordDialog}
+        onClose={() => { setShowPasswordDialog(false); setPassword(''); setPasswordError(''); setPendingRoute(null); }}
+        title="Enter Password"
+        description={
+          <View style={{alignItems: 'center'}}>
+            <View style={{flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#ccc', borderRadius: 8, paddingHorizontal: 8, marginBottom: 8}}>
+              <TextInput
+                style={{flex: 1, fontSize: 18, padding: 8}}
+                placeholder="Password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                autoFocus
+              />
+              <TouchableOpacity onPress={() => setShowPassword(v => !v)} style={{padding: 4}}>
+                <Text style={{color: '#007AFF', fontWeight: 'bold'}}>{showPassword ? 'Hide' : 'Show'}</Text>
+              </TouchableOpacity>
+            </View>
+            {passwordError ? <Text style={{color: 'red', marginBottom: 4}}>{passwordError}</Text> : null}
+          </View>
+        }
+        confirmText="OK"
+        cancelText="Cancel"
+        onConfirm={handlePasswordConfirm}
+        confirmButtonColor="#ff6600"
+        onCancel={() => { setShowPasswordDialog(false); setPassword(''); setPasswordError(''); setPendingRoute(null); }}
+      />
     </View>
   );
 };
@@ -233,7 +329,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderRadius: 8, // Circular button
     marginHorizontal: 8,
-    backgroundColor: "#f26c18"
+    backgroundColor: "#ff6600"
   },
   disabledCartButton: {
     height: 50,
@@ -261,12 +357,16 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   secretButton: {
-    position: "absolute",
+    position: 'absolute',
     margin: 16,
     bottom: 48,
-    alignSelf: "center",
-    borderRadius: "5%",
-    backgroundColor: "#f26c18",
+    alignSelf: 'center',
+    backgroundColor: '#ff6600',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
   },
 });
 

@@ -7,6 +7,7 @@ export default function OpenFilePage() {
   const handleOpenFile = async () => {
     try {
       // const filePath = `${RNFS.DownloadDirectoryPath}/app-release.apk`; // Replace with your actual file path
+      // const filePath="/storage/emulated/0/Download/files/app-release.apk"
       const filePath="/storage/emulated/0/Android/data/com.awesomeproject/files/app-release.apk"
 
 

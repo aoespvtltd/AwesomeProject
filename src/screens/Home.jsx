@@ -279,6 +279,7 @@ function VendingMachine({route, setRoute}) {
               </View>
             )}
           </TouchableOpacity>
+            <Text style={{color: "red", fontSize: 20}}>Cart</Text>
         </View>
       </View>
 
@@ -372,6 +373,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#e5e7eb',
     paddingHorizontal: 12,
     paddingVertical: 8,
+    
     // marginBottom: 8
   },
   logoContainer: {

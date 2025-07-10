@@ -126,6 +126,7 @@ const CartItem = ({ product, cartsLoading, cartItems }) => {
 const styles = StyleSheet.create({
   card: {
     marginVertical: 4,
+    marginHorizontal: 4,
     elevation: 2,
   },
   cardContent: {

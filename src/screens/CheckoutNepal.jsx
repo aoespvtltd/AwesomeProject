@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import {Button, Text, Title, Card, Paragraph} from 'react-native-paper';
 import {useMutation, useQuery} from '@tanstack/react-query';
-import {ArrowLeft, Home, Loader2} from 'lucide-react-native';
+import {ArrowLeft, Home, Loader2, AlertCircle} from 'lucide-react-native';
 import QRCode from 'react-native-qrcode-svg';
 import LoadingComp from '../../components/myComp/LoadingComp';
 import {
@@ -70,6 +70,7 @@ const CheckoutNepal = ({route, setRoute}) => {
   const [socket, setSocket] = useState(null);
   const [success, setSuccess] = useState(false)
   const [amount, setAmount] = useState(false)
+  const [error, setError] = useState("")
 
 
   // Add a delay utility function
@@ -128,15 +129,16 @@ const CheckoutNepal = ({route, setRoute}) => {
 
             try {
               const data = await finalizePayment();
+              console.log(data.data)
               setPaymentSuccess(true);
               setCountdownText('Returning to home in');
               setShowReview(true);
 
               // Use improved serial communication function
               await delay(1000); // Add delay before sending data
-              console.log(data.data?.data?.pnAndQntyArrForNewMod);
+              console.log(data.data?.data?.mappedArray);
               const sendSuccess = await sendDataArray3(
-                data?.data?.data?.pnAndQntyArrForNewMod,
+                data?.data?.data?.mappedArray,
               );
               
               if (sendSuccess) {
@@ -222,6 +224,12 @@ const CheckoutNepal = ({route, setRoute}) => {
     };
   }, [socket]);
 
+  useEffect(() => {
+    if (countdown <= 90 && countdown >= 5 && paymentMutation.isPending) {
+      setError("Error generating QR");
+      setCountdown(4);
+    }
+  }, [countdown, paymentMutation.isPending]);
 
   async function sendDataArray3(hexStringArr) {
     let hexStringArray = createMotorRunCmdsWithArray(hexStringArr);
@@ -269,6 +277,11 @@ const CheckoutNepal = ({route, setRoute}) => {
           <ArrowLeft color="#000" size={24} />
           <Text style={styles.buttonText}>Back</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setRoute('nepalUart')}
+          style={styles.backButton}>
+          <Text style={styles.homeButtonText}>Uart</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity
           onPress={() => setRoute('home')}
@@ -308,7 +321,7 @@ const CheckoutNepal = ({route, setRoute}) => {
           <View style={styles.paymentSection}>
             <Text style={styles.paymentText}>We Accept</Text>
           <View style={{flexDirection: 'row', gap: 12}}>
-            {payDetails?.nepalPayDetails && (
+            {payDetails?.nepalPayDetails && !paymentSuccess && (
               <TouchableOpacity
                 style={{
                   paddingVertical: 8,
@@ -331,7 +344,7 @@ const CheckoutNepal = ({route, setRoute}) => {
                 />
               </TouchableOpacity>
             )}
-            {payDetails?.merchantDetails && (
+            {payDetails?.merchantDetails && !paymentSuccess && (
               <TouchableOpacity
                 style={{
                   paddingVertical: 8,
@@ -357,6 +370,15 @@ const CheckoutNepal = ({route, setRoute}) => {
 
           {paymentMutation.isPending ? (
             <LoadingComp />
+          ) : error ? (
+            <View style={styles.errorContainer}>
+              <View style={styles.errorContent}>
+                <AlertCircle size={48} color="#dc2626" style={{alignSelf: 'center', marginBottom: 8}} />
+                <Text style={styles.errorTitle}>QR Generation Failed</Text>
+                <Text style={styles.errorMessage}>{error}</Text>
+                <Text style={styles.errorMessage}>Redirecting to home in {countdown} sec</Text>
+              </View>
+            </View>
           ) : paymentSuccess ? (
             <View style={styles.messageContainer}>
               <Text style={styles.successText}>Payment Successful!</Text>
@@ -617,7 +639,7 @@ const styles = StyleSheet.create({
   },
   errorContainer: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    // backgroundColor: '#f8f9fa',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -649,6 +671,7 @@ const styles = StyleSheet.create({
     color: '#4b5563',
     marginBottom: 16,
     lineHeight: 22,
+    textAlign: "center"
   },
   errorList: {
     marginBottom: 24,

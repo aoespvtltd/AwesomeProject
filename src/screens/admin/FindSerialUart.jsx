@@ -1,6 +1,7 @@
 import React, {useState, useEffect} from 'react';
 import {View, StyleSheet, ScrollView, Alert,
-  TextInput} from 'react-native';
+  TextInput,
+  TouchableOpacity} from 'react-native';
 import {
   Button,
   Text,
@@ -8,152 +9,104 @@ import {
   Title,
   RadioButton,
 } from 'react-native-paper';
-import {
-  UsbSerialManager,
-  Parity,
-} from 'react-native-usb-serialport-for-android';
-import {createMotorRunCmdsWithArray} from '../utils/serialDetail';
-import {StepBack} from 'lucide-react-native';
+import {createMotorRunCmdsWithArray} from '../../utils/serialDetail';
+import {RefreshCcw, StepBack} from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getMachineDetails } from '../../../components/api/api';
+import useUart from '../../hooks/useUart';
 
 const FindSerial = ({setRoute}) => {
-  const [devices, setDevices] = useState([]);
-  const [selectedDevice, setSelectedDevice] = useState(null);
-  const [baudRate, setBaudRate] = useState('9600');
-  const [isConnected, setIsConnected] = useState(false);
-  const [serialPort, setSerialPort] = useState(null);
   const [testCommand, setTestCommand] = useState(0);
   const [running, setRunning] = useState(null);
   const [numTestItems, setNumTestItems] = useState(5);
+  const [configArray, setConfigArray] = useState([])
 
-  // Common baud rates
-  const baudRates = ['9600', '115200'];
+  
+  const {
+    isConnected,
+    sendMessage,
+    handleRefresh,
+  } = useUart();
 
-  // Convert string to hex for serial communication
-  function stringToHex(str) {
-    let hex = '';
-    for (let i = 0; i < str.length; i++) {
-      const charCode = str.charCodeAt(i).toString(16).padStart(2, '0');
-      hex += charCode;
-    }
-    return hex;
+
+  const getMapArray = async ()=>{
+    const machineId = await AsyncStorage.getItem("machineId")
+    const thisMachine = await getMachineDetails(machineId)
+    console.log(thisMachine.data.data.configArray)
+    setConfigArray(thisMachine.data.data.configArray)
+    // setMachine(thisMachine?.data?.data)
+    return thisMachine?.data?.data
   }
 
-  // Test serial communication
-  const testConnection = async () => {
-    if (!serialPort || !isConnected) {
-      Alert.alert('Error', 'Please connect to a device first');
-      return;
-    }
-
-    try {
-      // Test command - you can modify this based on your needs
-      const testCommand = [[1, 2]];
-      const hexData = stringToHex(testCommand);
-
-      await serialPort.send(hexData);
-      console.log(`Sent test data: ${hexData}`);
-      Alert.alert('Success', 'Test command sent successfully');
-    } catch (error) {
-      console.error('Error sending test command:', error);
-      Alert.alert('Error', 'Failed to send test command');
-    }
-  };
 
   async function sendDataArray3(hexStringArr) {
-    console.log(hexStringArr);
-    let hexStringArray = createMotorRunCmdsWithArray(hexStringArr);
-    // console.log(hexStringArray)
-    if (!serialPort) {
-      Alert.alert('Error', 'No serial connection available');
+    console.log(hexStringArr)
+    if (!isConnected) {
+      Alert.alert('Error', 'No UART connection available');
       return;
     }
-
+    let hexStringArray = createMotorRunCmdsWithArray(hexStringArr);
+    console.log('Sending hex string array:', hexStringArray);
+    
     try {
-      for (let i = 0; i < hexStringArray.length; i++) {
-        // Send current hex string
-        const hexString = hexStringArray[i];
-        console.log(i);
-        setRunning(hexString);
-        console.log(
-          `Sending string ${i + 1}/${hexStringArray.length}: ${hexString}`,
-        );
-        await serialPort.send(hexString);
+      // Create a promise that will resolve when all messages are sent
+      const sendAllMessages = async () => {
+        for (let i = 0; i < hexStringArray.length; i++) {
+          const hexString = hexStringArray[i];
+          
+          // Remove any non-hex characters and make uppercase
+          const clean = hexString.replace(/[^0-9a-fA-F]/g, '').toUpperCase();
+          
+          // Ensure even number of characters
+          const even = clean.length % 2 === 0 ? clean : '0' + clean;
+          
+          // Split into two-character chunks and join with spaces
+          let message = even.match(/.{1,2}/g)?.join(' ') ?? '';
+          console.log(`Sending message ${i + 1}/${hexStringArray.length}:`, message);
+          
+          // Add initial delay before sending
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          const sendResult = await sendMessage(message);
+          if (!sendResult) {
+            console.error(`Failed to send message ${i + 1}`);
+            return false;
+          }
 
-        let timeoutTime = 5000;
-        // if (hexStringArr[i][0] <= 10) {
-        //   timeoutTime = 5000;
-        // } else {
-        //   timeoutTime = 10000;
-        // }
-
-        // Don't wait after the last string
-        if (i < hexStringArray.length - 1) {
-          // Wait for 3 seconds before sending next string
-          await new Promise(resolve => setTimeout(resolve, timeoutTime));
+          setRunning(message)
+          
+          // Wait between commands
+          if (i < hexStringArray.length - 1) {
+            console.log(`Waiting 5 seconds before next command...`);
+            await new Promise(resolve => setTimeout(resolve, 5000));
+          }
         }
-      }
+        console.log("All commands sent successfully");
+        return true;
+      };
+
+      // Start sending messages and don't wait for it to complete
+      sendAllMessages().then(success => {
+        if (success) {
+          console.log("All messages sent successfully");
+        } else {
+          console.error("Failed to send all messages");
+        }
+      });
+
+      // Return true immediately to allow navigation
+      return true;
     } catch (error) {
-      console.error('Error sending data:', error);
+      console.error('Error in sendDataArray3:', error);
+      return false;
     }
   }
 
-  // List all available devices
-  const listDevices = async () => {
-    try {
-      const availableDevices = await UsbSerialManager.list();
-      setDevices(availableDevices);
-      // Alert.alert(availableDevices)
-      console.log('Available devices:', availableDevices);
-    } catch (error) {
-      console.error('Error listing devices:', error);
-      Alert.alert('Error', 'Failed to list USB devices');
-    }
-  };
 
-  // Connect to selected device
-  const connectDevice = async () => {
-    if (!selectedDevice) {
-      Alert.alert('Error', 'Please select a device first');
-      return;
-    }
-
-    try {
-      // Request permission
-      const granted = await UsbSerialManager.tryRequestPermission(
-        selectedDevice.deviceId,
-      );
-
-      if (granted) {
-        // Open serial port with selected configuration
-        const port = await UsbSerialManager.open(selectedDevice.deviceId, {
-          baudRate: parseInt(baudRate),
-          parity: Parity.None,
-          dataBits: 8,
-          stopBits: 1,
-        });
-
-        setSerialPort(port);
-        setIsConnected(true);
-        Alert.alert('Success', 'Connected to device successfully');
-      } else {
-        Alert.alert('Error', 'USB permission denied');
-      }
-    } catch (error) {
-      console.error('Error connecting to device:', error);
-      Alert.alert('Error', 'Failed to connect to device');
-    }
-  };
 
   // Refresh device list
   useEffect(() => {
-    listDevices();
-    return () => {
-      // Cleanup: close serial port when component unmounts
-      if (serialPort) {
-        serialPort.close();
-      }
-    };
+    getMapArray();
   }, []);
 
   return (
@@ -173,18 +126,21 @@ const FindSerial = ({setRoute}) => {
               onPress={() => setRoute('home')}
             />
             <Title>USB Serial Devices</Title>
+            <TouchableOpacity onPress={getMapArray}>
+              <RefreshCcw size={16}/>
+            </TouchableOpacity>
           </View>
 
           {/* Refresh Button */}
-          <Button
+          <Button 
             mode="contained"
-            onPress={listDevices}
+            onPress={handleRefresh}
             style={styles.refreshButton}>
             Refresh Devices
           </Button>
 
           {/* Device List */}
-          <ScrollView style={styles.deviceList}>
+          {/* <ScrollView style={styles.deviceList}>
             {devices.map((device, index) => (
               <RadioButton.Item
                 key={device.deviceId}
@@ -204,10 +160,10 @@ const FindSerial = ({setRoute}) => {
                 }}
               />
             ))}
-          </ScrollView>
+          </ScrollView> */}
 
           {/* Baud Rate Selection */}
-          <Title style={styles.sectionTitle}>Baud Rate</Title>
+          {/* <Title style={styles.sectionTitle}>Baud Rate</Title>
           <View style={styles.baudRateContainer}>
             {baudRates.map(rate => (
               <RadioButton.Item
@@ -218,23 +174,16 @@ const FindSerial = ({setRoute}) => {
                 onPress={() => setBaudRate(rate)}
               />
             ))}
-            {/* <TextInput
-              label="Custom Baud Rate"
-              value={!baudRates.includes(baudRate) ? baudRate : ''}
-              onChangeText={setBaudRate}
-              keyboardType="numeric"
-              style={styles.customBaudInput}
-            /> */}
-          </View>
+          </View> */}
 
           {/* Connect Button */}
-          <Button
+          {/* <Button
             mode="contained"
             onPress={connectDevice}
             // disabled={!selectedDevice || isConnected}
             style={styles.connectButton}>
             {isConnected ? 'Connected' : 'Connect'}
-          </Button>
+          </Button> */}
 
           {/* Test Button */}
           <View
@@ -281,7 +230,7 @@ const FindSerial = ({setRoute}) => {
             mode="contained"
             onPress={() => {
               const testArray = Array.from({length: numTestItems}, (_, i) => [
-                testCommand + i,
+                configArray[(testCommand + i - 1)],
                 1,
               ]);
               sendDataArray3(testArray);

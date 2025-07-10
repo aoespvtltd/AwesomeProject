@@ -82,11 +82,12 @@ export function expandArray(arr) {
   const result = [];
   arr.forEach(([num, count]) => {
     for (let i = 0; i < count; i++) {
-      if (num <= 10){
-        result.push((num-1)*2)
-      }else{
-        result.push(num+10-1);
-      }
+      // if (num <= 10){
+      //   result.push((num-1)*2)
+      // }else{
+      //   result.push(num+10-1);
+      // }
+      result.push(num - 1)
     }
   });
   return result;

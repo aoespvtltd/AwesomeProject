@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, ScrollView, StyleSheet, TouchableOpacity } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getappVersion, getProducts, machineId } from "../../components/api/api";
+import { getappVersion, getProducts, machineId } from "../../../components/api/api";
 // import { useRouter, useLocalSearchParams } from "expo-router";
 import { ArrowLeft, RefreshCcw } from "lucide-react-native";
 import {
@@ -12,30 +12,31 @@ import {
   ActivityIndicator,
   Surface,
 } from "react-native-paper";
-import ProductRow from "../../components/myComp/ProductRow";
-import TestDownloadPage from "./test/testDownloadPage";
-import { appVersion } from "../constants";
+import ProductRow from "../../../components/myComp/ProductRow";
+import TestDownloadPage from "../test/testDownloadPage";
+import { appVersion } from "../../constants";
+import InstallApkButton from '../../utils/InstallApkButton';
 
 export default function AdminFillStock({route, setRoute}) {
   // const router = useRouter();
   const queryClient = useQueryClient();
   // const { machineId } = useLocalSearchParams();
-  const [updateNeeded, setUpdateNeeded] = useState(false)
+  // const [updateNeeded, setUpdateNeeded] = useState(false)
 
   
-  const checkForUpdates = async () => {
-    try {
-      const response = await getappVersion();
-      console.log(response.data.data)
-      const serverVersion = response.data.data.version;
+  // const checkForUpdates = async () => {
+  //   try {
+  //     const response = await getappVersion();
+  //     console.log(response.data.data)
+  //     const serverVersion = response.data.data.version;
       
-      if (serverVersion !== appVersion) {
-        setUpdateNeeded(true)
-      }
-    } catch (error) {
-      console.error('Version check failed:', error);
-    }
-  };
+  //     if (serverVersion !== appVersion) {
+  //       setUpdateNeeded(true)
+  //     }
+  //   } catch (error) {
+  //     console.error('Version check failed:', error);
+  //   }
+  // };
 
   const {
     data: productsFill,
@@ -51,42 +52,55 @@ export default function AdminFillStock({route, setRoute}) {
   });
 
   useEffect(() => {
-    checkForUpdates()
+    // checkForUpdates()
     return () => {
       queryClient.invalidateQueries("productsFill");
     };
   }, []);
 
-  if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6366f1" />
-        <Text style={styles.loadingText}>Loading products...</Text>
-      </View>
-    );
-  }
+  
+  // if (isLoading) {
+  //   return (
+  //     <View style={styles.loadingContainer}>
+  //       <ActivityIndicator size="large" color="#ff6600" />
+  //       <Text style={styles.loadingText}>Loading products...</Text>
+  //     </View>
+  //   );
+  // }
 
-  if (isError) {
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Failed to load products.</Text>
-      </View>
-    );
-  }
+  // if (isError) {
+  //   return (
+  //     <View style={styles.errorContainer}>
+  //       <Text style={styles.errorText}>Failed to load products.</Text>
+  //     </View>
+  //   );
+  // }
 
   return (
     <View style={styles.container}>
       <Surface style={styles.header} elevation={2}>
         <IconButton
-          icon={() => <ArrowLeft size={24} color="#6366f1" />}
+          icon={() => <ArrowLeft size={24} strokeWidth={3} color="#ff6600" />}
           onPress={() => setRoute("home")}
           style={styles.backButton}
         />
         <Text style={styles.title}>Admin - Fill Stock</Text>
-        {updateNeeded ? <TestDownloadPage /> : <Text></Text>}
+        {/* {updateNeeded ? <TestDownloadPage /> : <Text></Text>} */}
+        {/* <TestDownloadPage /> */}
+        <InstallApkButton />
+        {/* <Text>Hello</Text> */}
       </Surface>
 
-      <ScrollView style={styles.scrollView}>
+      {isLoading ? (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#ff6600" />
+        <Text style={styles.loadingText}>Loading products...</Text>
+      </View>
+    ) : isError ? (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Failed to load products.</Text>
+      </View>
+    ) : <ScrollView style={styles.scrollView}>
         <Card style={styles.card}>
           <DataTable>
             <DataTable.Header style={styles.tableHeader}>
@@ -129,7 +143,7 @@ export default function AdminFillStock({route, setRoute}) {
             ))}
           </DataTable>
         </Card>
-      </ScrollView>
+      </ScrollView>}
     </View>
   );
 }
@@ -159,10 +173,10 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    padding: 16,
+    // padding: 16,
   },
   card: {
-    borderRadius: 12,
+    // borderRadius: 12,
     backgroundColor: "white",
     overflow: "hidden",
   },
