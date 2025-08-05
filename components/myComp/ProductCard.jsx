@@ -9,7 +9,7 @@ import AddToCartButton from "./AddToCartButton";
 
 const screenWidth = Dimensions.get("window").width;
 
-const ProductCard = memo(({ product, onCartUpdate, refetch }) => {
+const ProductCard = memo(({ product, onCartUpdate, refetch, isConnected, resetTimer=()=>{} }) => {
   const queryClient = useQueryClient();
   const [isButtonDisabled, setIsButtonDisabled] = useState(false);
 
@@ -19,6 +19,7 @@ const ProductCard = memo(({ product, onCartUpdate, refetch }) => {
     mutationFn: () => addToCart(product._id),
     onMutate: () => setIsButtonDisabled(true),
     onSuccess: async () => {
+      resetTimer()
       queryClient.setQueryData(["products"], (oldData) => {
         if (!oldData?.data?.data) return oldData;
         const updatedProducts = oldData.data.data.map((p) =>
@@ -62,6 +63,8 @@ const ProductCard = memo(({ product, onCartUpdate, refetch }) => {
           isDisabled={isDisabled}
           buttonLabel={buttonLabel}
           onPress={addToCartMutate}
+          isConnected={isConnected}
+          resetTimer={resetTimer}
         />
       </Card.Actions>
     </Card>
@@ -85,15 +88,16 @@ const styles = StyleSheet.create({
   },
   productNumberBadge: {
     position: "absolute",
-    top: 8,
-    left: 8,
+    top: 4,
+    left: 4,
     zIndex: 120,
-    backgroundColor: "#333",
+    backgroundColor: "#2f2f2f",
     color: "#fff",
-    fontSize: 12,
-    height: 24,
-    minWidth: 24,
-    borderRadius: 12,
+    fontSize: 15,
+    fontWeight: "bold",
+    height: 28,
+    minWidth: 28,
+    borderRadius: 99,
     paddingHorizontal: 6,
     justifyContent: "center",
     display: "flex",

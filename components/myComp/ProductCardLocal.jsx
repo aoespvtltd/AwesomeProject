@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, Image, StyleSheet } from 'react-native';
+import { View, Image, StyleSheet, ActivityIndicator } from 'react-native';
 import { Button, Card, Text, Dialog, Portal } from 'react-native-paper';
 import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ActivityIndicator } from 'react-native-paper';
 
 const CartIcon = require("../../assets/Cart1.png");
 const TingSound = require("../../assets/ting.mp3");

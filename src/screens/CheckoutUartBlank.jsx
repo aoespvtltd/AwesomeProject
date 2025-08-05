@@ -6,7 +6,6 @@ import {
   Alert,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
 } from 'react-native';
 import {Button, Text, Title, Card, Paragraph} from 'react-native-paper';
 import {useMutation, useQuery} from '@tanstack/react-query';
@@ -17,7 +16,6 @@ import {
   initiatePayment,
   finalizePayment,
   clearCart,
-  getCartItems,
   getUnpaidCartsByMachine,
   hasWhatPayments,
 } from '../../components/api/api';
@@ -27,130 +25,63 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import useUart from '../hooks/useUart';
 
 const Checkout = ({route, setRoute}) => {
-  const [qrCodeData, setQrCodeData] = useState('');
-  const [orderId, setOrderId] = useState('');
-  const [wsUrl, setWsUrl] = useState('');
-  const [isScanned, setIsScanned] = useState(false);
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [countdownText, setCountdownText] = useState('Time remaining');
   const [countdown, setCountdown] = useState(120);
-  const [showReview, setShowReview] = useState(false);
-  const [reviewSubmitted, setReviewSubmitted] = useState(false);
-  const [error, setError] = useState("")
 
-  const {
-    isConnected,
-    sendMessage,
-    handleRefresh,
-  } = useUart();
+  async function asy(){ 
+    console.log(await AsyncStorage.getAllKeys()) 
+    return await AsyncStorage.getItem("fonepayDetails")
+  } 
 
-  // Add a delay utility function
-  const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+useEffect(() => {
+// console.log(payDetails)  
+console.log(payDetails?.merchantDetails, payDetails?.nepalPayDetails)   
+}, [])
 
 
   const {
-    data: payDetails,
+    data: payDetails, 
     isLoading: payIsLoading,
     error: payError,
   } = useQuery({
     queryKey: ['payDetails'],
     queryFn: async () => {
+      let foneDetails = await asy();
+      let parsedDetails = null;
+      if (foneDetails) {
+        try {
+          parsedDetails = JSON.parse(foneDetails);
+        } catch (e) {
+          // Corrupted cache, ignore and fetch fresh
+          parsedDetails = null;
+        }
+      }
+
+      // Validate that both details exist
+      if (
+        parsedDetails &&
+        parsedDetails.merchantDetails &&
+        parsedDetails.nepalPayDetails
+      ) {
+        return parsedDetails;
+      }
+
+      // Fetch fresh from API
       const res = await hasWhatPayments();
-      await AsyncStorage.setItem("fonepayDetails", JSON.stringify(res.data.data))
-      console.log(res.data.data.merchantDetails)
-      if (!res.data.data.fonePayDetails){
-        setRoute("foneUart")
-      }
-      return res.data.data;
-    },
-  });
-
-  const paymentMutation = useMutation({
-    mutationFn: initiatePayment,
-    onSuccess: async response => {
-      const data = response.data.data;
-      console.log(data)
-      setOrderId(data.prn);
-      setWsUrl(data.wsUrl);
-
-      if (data.qrMessage) {
-        setQrCodeData(data.qrMessage);
-
-        const ws = new WebSocket(data.wsUrl);
-
-        ws.onmessage = async event => {
-          const jsonData = JSON.parse(event.data);
-          console.log('Received WebSocket message:', jsonData);
-
-          if (jsonData.transactionStatus) {
-            const status = JSON.parse(jsonData.transactionStatus);
-
-            if (status.qrVerified) {
-              setIsScanned(true);
-            }
-
-            if (status.paymentSuccess) {
-              setPaymentSuccess(true);
-
-              try {
-                console.log("object")
-                const payData = await finalizePayment();
-                setPaymentSuccess(true);
-                setCountdownText('Returning to home in');
-                setShowReview(true);
-
-                // Use improved UART communication function
-                await delay(1000); // Add delay before sending data
-                console.log("payData", payData)
-                const sendSuccess = await sendDataArray3(
-                  payData?.data?.data?.mappedArray,
-                );
-                if (sendSuccess) {
-                  setCountdown(10);
-                  ws.close();
-                  // Show review for 10 seconds before redirecting
-                  setTimeout(() => {
-                    setShowReview(false);
-                    setRoute('home');
-                  }, 10000);
-                } else {
-                  // Handle failed communication
-                  Alert.alert(
-                    'Error',
-                    'Failed to communicate with device. Your payment was successful, but please contact support.',
-                    [
-                      {
-                        text: 'Return to Home',
-                        onPress: () => setRoute('home'),
-                      },
-                    ],
-                  );
-                }
-              } catch (error) {
-                console.error('Error in payment process:', error);
-              }
-            }
-          }
-        };
-
-        ws.onerror = error => {
-          console.error('WebSocket error:', error);
-        };
+      if (
+        res.data?.data &&
+        res.data.data.merchantDetails &&
+        res.data.data.nepalPayDetails
+      ) {
+        await AsyncStorage.setItem("fonepayDetails", JSON.stringify(res.data.data));
+        return res.data.data;
+      } else {
+        // Optionally clear cache if API returns incomplete data
+        await AsyncStorage.removeItem("fonepayDetails");
+        throw new Error("Payment details incomplete from API");
       }
     },
-    onError: error => {
-      console.error('Error initiating payment:', error);
-    },
   });
-
-  
-  useEffect(() => {
-    if (countdown <= 90 && countdown >= 5 && paymentMutation.isPending) {
-      setError("Error generating QR");
-      setCountdown(4);
-    }
-  }, [countdown, paymentMutation?.isPending]);
-
 
   const {
     data: cartItems,
@@ -165,6 +96,9 @@ const Checkout = ({route, setRoute}) => {
     },
   });
 
+  // Calculate total from cartItems
+  const totalAmount = cartItems?.data?.data?.reduce((sum, item) => sum + (item.productId.price * item.quantity), 0) || 0;
+
   // Initialize countdown timer
   useEffect(() => {
     const interval = setInterval(() => {
@@ -176,80 +110,7 @@ const Checkout = ({route, setRoute}) => {
     };
   }, []);
 
-  // Initialize payment when component mounts
-  useEffect(() => {
-    console.log('Initializing payment...');
-    paymentMutation.mutate();
-  }, []);
 
-  function stringToHex(str) {
-    let hex = '';
-    for (let i = 0; i < str.length; i++) {
-      const charCode = str.charCodeAt(i).toString(16).padStart(2, '0');
-      hex += charCode;
-    }
-    return hex;
-  }
-
-  async function sendDataArray3(hexStringArr) {
-    if (!isConnected) {
-      Alert.alert('Error', 'No UART connection available');
-      return;
-    }
-    let hexStringArray = createMotorRunCmdsWithArray(hexStringArr);
-    console.log('Sending hex string array:', hexStringArray);
-    
-    try {
-      // Create a promise that will resolve when all messages are sent
-      const sendAllMessages = async () => {
-        for (let i = 0; i < hexStringArray.length; i++) {
-          const hexString = hexStringArray[i];
-          
-          // Remove any non-hex characters and make uppercase
-          const clean = hexString.replace(/[^0-9a-fA-F]/g, '').toUpperCase();
-          
-          // Ensure even number of characters
-          const even = clean.length % 2 === 0 ? clean : '0' + clean;
-          
-          // Split into two-character chunks and join with spaces
-          let message = even.match(/.{1,2}/g)?.join(' ') ?? '';
-          console.log(`Sending message ${i + 1}/${hexStringArray.length}:`, message);
-          
-          // Add initial delay before sending
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          const sendResult = await sendMessage(message);
-          if (!sendResult) {
-            console.error(`Failed to send message ${i + 1}`);
-            return false;
-          }
-          
-          // Wait between commands
-          if (i < hexStringArray.length - 1) {
-            console.log(`Waiting 5 seconds before next command...`);
-            await new Promise(resolve => setTimeout(resolve, 5000));
-          }
-        }
-        console.log("All commands sent successfully");
-        return true;
-      };
-
-      // Start sending messages and don't wait for it to complete
-      sendAllMessages().then(success => {
-        if (success) {
-          console.log("All messages sent successfully");
-        } else {
-          console.error("Failed to send all messages");
-        }
-      });
-
-      // Return true immediately to allow navigation
-      return true;
-    } catch (error) {
-      console.error('Error in sendDataArray3:', error);
-      return false;
-    }
-  }
 
 
     if (countdown <= 0) {
@@ -316,7 +177,7 @@ const Checkout = ({route, setRoute}) => {
             <ScrollView style={styles.paymentButtonsScroll} contentContainerStyle={styles.paymentButtonsContent}>
               <Text style={styles.paymentText}>Choose your payment option</Text>
               <View style={{flexDirection: 'column', gap: 12}}>
-                {payDetails?.nepalPayDetails && (
+                {/* {payDetails?.nepalPayDetails && ( */}
                   <TouchableOpacity
                     style={{
                       paddingVertical: 8,
@@ -326,130 +187,53 @@ const Checkout = ({route, setRoute}) => {
                       justifyContent: 'center',
                       alignItems: 'center',
                     }}
-                    onPress={() => setRoute('nepalUart')}>
+                    onPress={() => setRoute('nepalUart')}
+                    disabled={!payDetails?.nepalPayDetails}
+                    >
+                      {console.log(payDetails?.nepalPayDetails)}
                     <Image
                       style={{width: 120, height: 50}}
                       source={require("../assets/nepalPayLogo.png")}
                       resizeMode="contain"
                     />
                   </TouchableOpacity>
-                )}
-                {payDetails?.merchantDetails && (
+                {/* )} */}
+                {/* {payDetails?.merchantDetails && ( */}
                   <TouchableOpacity
                     style={{
                       paddingVertical: 8,
                       paddingHorizontal: 16,
                       borderRadius: 12,
-                      borderWidth: 2,
-                      borderColor: '#f97316',
-                      backgroundColor: '#fff7ed',
+                      backgroundColor: '#e2e8f0',
                       justifyContent: 'center',
                       alignItems: 'center',
                     }}
-                    onPress={() => setRoute('foneUart')}>
+                    onPress={() => setRoute('foneUart')}
+                    disabled={!payDetails?.merchantDetails}
+                    >
+                      {console.log(payDetails?.merchantDetails)}
                     <Image
                       style={{width: 120, height: 50}}
                       source={require("../assets/fonePay.png")}
                       resizeMode="contain"
                     />
                   </TouchableOpacity>
-                )}
+                {/* // )} */}
               </View>
             </ScrollView>
 
             {/* QR/Feedback Section - independently scrollable */}
             <ScrollView style={styles.qrSectionScroll} contentContainerStyle={styles.qrSectionContent}>
-              {error ? (
-                <View style={styles.errorContainer}>
-                  <View style={styles.errorContent}>
-                    <AlertCircle size={48} color="#dc2626" style={{alignSelf: 'center', marginBottom: 8}} />
-                    <Text style={styles.errorTitle}>QR Generation Failed</Text>
-                    <Text style={styles.errorMessage}>{error}</Text>
-                  </View>
-                </View>
-              ) : paymentSuccess ? (
-                <View style={styles.messageContainer}>
-                  <Text style={styles.successText}>Payment Successful!</Text>
-                  <Text style={styles.messageText}>
-                    Thank you for the purchase!
-                  </Text>
-                  <Text style={styles.messageText}>Have a good day.</Text>
-                  {showReview && !reviewSubmitted ? (
-                    <View style={styles.reviewContainer}>
-                      <Text style={styles.reviewTitle}>How was your experience?</Text>
-                      <View style={styles.reviewButtons}>
-                        <TouchableOpacity
-                          style={[styles.reviewButton, styles.badButton]}
-                          onPress={() => {
-                            setCountdown(2)
-                            setReviewSubmitted(true);
-                            // Here you can add API call to submit the review
-                          }}>
-                          <Text style={styles.emojiText}>😫</Text>
-                          <Text style={styles.reviewLabel}>Bad</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.reviewButton, styles.averageButton]}
-                          onPress={() => {
-                            setCountdown(2)
-                            setReviewSubmitted(true);
-                            // Here you can add API call to submit the review
-                          }}>
-                          <Text style={styles.emojiText}>😐</Text>
-                          <Text style={styles.reviewLabel}>Average</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.reviewButton, styles.goodButton]}
-                          onPress={() => {
-                            setCountdown(2)
-                            setReviewSubmitted(true);
-                            // Here you can add API call to submit the review
-                          }}>
-                          <Text style={styles.emojiText}>😄</Text>
-                          <Text style={styles.reviewLabel}>Good</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ) : reviewSubmitted ? (
-                    <View style={styles.thankYouContainer}>
-                      <Text style={styles.thankYouText}>Thank you for your feedback! 🙏</Text>
-                      <Text style={styles.messageText}>
-                        Returning to home in {countdown} seconds.
-                      </Text>
-                    </View>
-                  ) : (
-                    <Text style={styles.messageText}>
-                      Returning to home in {countdown} seconds.
-                    </Text>
-                  )}
-                </View>
-              ) : isScanned ? (
-                <View style={styles.messageContainer}>
-                  <Text style={styles.processingText}>
-                    QR Code Scanned! Processing payment...
-                  </Text>
-                  <View style={styles.qrCodeContainer}>
-                    <QRCode value={qrCodeData} size={200} />
-                  </View>
-                </View>
-              ) : (
-                <View style={styles.messageContainer}>
-                  <Text style={styles.instructionText}>Scan the QR to pay</Text>
-                  <Text style={styles.subInstructionText}>
-                    Dispense will start automatically after successful payment
-                  </Text>
-                  <Text style={styles.amount}>
-                    Nrs. {paymentMutation?.data?.data?.data?.amount || '0'}
-                  </Text>
-                  <View style={styles.qrCodeContainer}>
-                    {paymentMutation.isPending || !qrCodeData ? (
-                      <ActivityIndicator size={40} color={"#ff6600"}/>
-                    ) : (
-                      <QRCode value={qrCodeData} size={200} />
-                    )}
-                  </View>
-                </View>
-              )}
+              <View style={styles.messageContainer}>
+                <Text style={styles.instructionText}>Scan the QR to pay</Text>
+                <Text style={styles.subInstructionText}>
+                  Dispense will start automatically after successful payment
+                </Text>
+                <Text style={styles.amount}>
+                  Nrs. {totalAmount}
+                </Text>
+                <View style={styles.qrCodeContainer} />
+              </View>
             </ScrollView>
           </View>
         </View>
@@ -683,10 +467,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   qrCodeContainer: {
-    padding: 16,
-    backgroundColor: '#fff',
+    padding: 100,
+    backgroundColor: "#ddd",
     borderRadius: 8,
-    elevation: 3,
+    // elevation: 3,
   },
   errorContainer: {
     flex: 1,

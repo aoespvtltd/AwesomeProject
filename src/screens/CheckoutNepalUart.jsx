@@ -19,7 +19,7 @@ import {
   clearCart,
   getCartItems,
   getUnpaidCartsByMachine,
-  getFonePayDetails,
+  hasWhatPayments,
 } from '../../components/api/api';
 import {
   UsbSerialManager,
@@ -148,7 +148,7 @@ const CheckoutNepalUart = ({route, setRoute}) => {
   } = useQuery({
     queryKey: ['payDetails'],
     queryFn: async () => {
-      const res = await getFonePayDetails();
+      const res = await hasWhatPayments();
       await AsyncStorage.setItem("fonepayDetails", JSON.stringify(res.data.data))
       if (!res.data.data.nepalPayDetails){
         setRoute("checkout")
@@ -263,7 +263,7 @@ const CheckoutNepalUart = ({route, setRoute}) => {
     error: cartError,
     refetch: cartRefetch,
   } = useQuery({
-    queryKey: ['cartItems'],
+    queryKey: ['cartData'],
     queryFn: async () => {
       let cartData = await getUnpaidCartsByMachine();
       return cartData;
@@ -427,144 +427,155 @@ const CheckoutNepalUart = ({route, setRoute}) => {
       </View>
 
       {/* Payment Section */}
-      <ScrollView style={styles.paymentSection}>
+      <View style={styles.paymentSection}>
         <View style={styles.contentContainer}>
-          <View style={styles.paymentSection}>
-            <Text style={styles.paymentText}>We Accept</Text>
-          <View style={{flexDirection: 'row', gap: 12}}>
-            {payDetails?.nepalPayDetails && (
-              <TouchableOpacity
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 16,
-                  borderRadius: 12,
-                  borderWidth: 2,
-                  borderColor: '#f97316',
-                  backgroundColor: '#fff7ed',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
-                disabled={success}
-                onPress={() => setRoute('nepalUart')}>
-                <Image
-                  style={{width: 120, height: 50}}
-                  source={{
-                    uri: 'https://files.catbox.moe/qhwpwg.png',
-                  }}
-                  resizeMode="contain"
-                />
-              </TouchableOpacity>
-            )}
-            {payDetails?.merchantDetails && (
-              <TouchableOpacity
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 16,
-                  borderRadius: 12,
-                  backgroundColor: '#e2e8f0',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
-                disabled={success}
-                onPress={() => setRoute('foneUart')}>
-                <Image
-                  style={{width: 120, height: 50}}
-                  source={{
-                    uri: 'https://login.fonepay.com/assets/img/fonepay_payments_fatafat.png',
-                  }}
-                  resizeMode="contain"
-                />
-              </TouchableOpacity>
-            )}
-          </View>
-          </View>
-
-          {paymentMutation.isPending ? (
-            <LoadingComp />
-          ) : error ? (
-            <View style={styles.errorContainer}>
-              <View style={styles.errorContent}>
-                <AlertCircle size={48} color="#dc2626" style={{alignSelf: 'center', marginBottom: 8}} />
-                <Text style={styles.errorTitle}>QR Generation Failed</Text>
-                <Text style={styles.errorMessage}>{error}</Text>
-                <Text style={styles.errorMessage}>Redirecting to home in {countdown} sec</Text>
+          <View style={styles.sideBySideContainer}>
+            {/* Payment Buttons - independently scrollable and vertically centered */}
+            <ScrollView style={styles.paymentButtonsScroll} contentContainerStyle={styles.paymentButtonsContent}>
+              <Text style={styles.paymentText}>Choose your payment option</Text>
+              <View style={{flexDirection: 'column', gap: 12}}>
+                {payDetails?.nepalPayDetails && (
+                  <TouchableOpacity
+                    style={{
+                      paddingVertical: 8,
+                      paddingHorizontal: 16,
+                      borderRadius: 12,
+                      borderWidth: 2,
+                      borderColor: '#f97316',
+                      backgroundColor: '#fff7ed',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}
+                    disabled={success}
+                    onPress={() => setRoute('nepalUart')}>
+                    <Image
+                      style={{width: 120, height: 50}}
+                      source={require("../assets/nepalPayLogo.png")}
+                      resizeMode="contain"
+                    />
+                  </TouchableOpacity>
+                )}
+                {payDetails?.merchantDetails && (
+                  <TouchableOpacity
+                    style={{
+                      paddingVertical: 8,
+                      paddingHorizontal: 16,
+                      borderRadius: 12,
+                      backgroundColor: '#e2e8f0',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}
+                    disabled={success}
+                    onPress={() => setRoute('foneUart')}>
+                    <Image
+                      style={{width: 120, height: 50}}
+                      source={require("../assets/fonePay.png")}
+                      resizeMode="contain"
+                    />
+                  </TouchableOpacity>
+                )}
               </View>
-            </View>
-          ) : paymentSuccess ? (
-            <View style={styles.messageContainer}>
-              <Text style={styles.successText}>Payment Successful!</Text>
-              <Text style={styles.messageText}>
-                Thank you for the purchase!
-              </Text>
-              <Text style={styles.messageText}>Have a good day.</Text>
-              {showReview && !reviewSubmitted ? (
-                <View style={styles.reviewContainer}>
-                  <Text style={styles.reviewTitle}>How was your experience?</Text>
-                  <View style={styles.reviewButtons}>
-                    <TouchableOpacity
-                      style={[styles.reviewButton, styles.badButton]}
-                      onPress={() => {
-                        setCountdown(2)
-                        setReviewSubmitted(true);
-                        // Here you can add API call to submit the review
-                      }}>
-                      <Text style={styles.emojiText}>😫</Text>
-                      <Text style={styles.reviewLabel}>Bad</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.reviewButton, styles.averageButton]}
-                      onPress={() => {
-                        setCountdown(2)
-                        setReviewSubmitted(true);
-                        // Here you can add API call to submit the review
-                      }}>
-                      <Text style={styles.emojiText}>😐</Text>
-                      <Text style={styles.reviewLabel}>Average</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.reviewButton, styles.goodButton]}
-                      onPress={() => {
-                        setCountdown(2)
-                        setReviewSubmitted(true);
-                        // Here you can add API call to submit the review
-                      }}>
-                      <Text style={styles.emojiText}>😄</Text>
-                      <Text style={styles.reviewLabel}>Good</Text>
-                    </TouchableOpacity>
+            </ScrollView>
+
+            {/* QR/Feedback Section - independently scrollable */}
+            <ScrollView style={styles.qrSectionScroll} contentContainerStyle={styles.qrSectionContent}>
+              {error ? (
+                <View style={styles.errorContainer}>
+                  <View style={styles.errorContent}>
+                    <AlertCircle size={48} color="#dc2626" style={{alignSelf: 'center', marginBottom: 8}} />
+                    <Text style={styles.errorTitle}>QR Generation Failed</Text>
+                    <Text style={styles.errorMessage}>{error}</Text>
+                    <Text style={styles.errorMessage}>Redirecting to home in {countdown} sec</Text>
                   </View>
                 </View>
-              ) : reviewSubmitted ? (
-                <View style={styles.thankYouContainer}>
-                  <Text style={styles.thankYouText}>Thank you for your feedback! 🙏</Text>
+              ) : paymentSuccess ? (
+                <View style={styles.messageContainer}>
+                  <Text style={styles.successText}>Payment Successful!</Text>
                   <Text style={styles.messageText}>
-                    Returning to home in {countdown} seconds.
+                    Thank you for the purchase!
                   </Text>
+                  <Text style={styles.messageText}>Have a good day.</Text>
+                  {showReview && !reviewSubmitted ? (
+                    <View style={styles.reviewContainer}>
+                      <Text style={styles.reviewTitle}>How was your experience?</Text>
+                      <View style={styles.reviewButtons}>
+                        <TouchableOpacity
+                          style={[styles.reviewButton, styles.badButton]}
+                          onPress={() => {
+                            setCountdown(2)
+                            setReviewSubmitted(true);
+                            // Here you can add API call to submit the review
+                          }}>
+                          <Text style={styles.emojiText}>😫</Text>
+                          <Text style={styles.reviewLabel}>Bad</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.reviewButton, styles.averageButton]}
+                          onPress={() => {
+                            setCountdown(2)
+                            setReviewSubmitted(true);
+                            // Here you can add API call to submit the review
+                          }}>
+                          <Text style={styles.emojiText}>😐</Text>
+                          <Text style={styles.reviewLabel}>Average</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.reviewButton, styles.goodButton]}
+                          onPress={() => {
+                            setCountdown(2)
+                            setReviewSubmitted(true);
+                            // Here you can add API call to submit the review
+                          }}>
+                          <Text style={styles.emojiText}>😄</Text>
+                          <Text style={styles.reviewLabel}>Good</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : reviewSubmitted ? (
+                    <View style={styles.thankYouContainer}>
+                      <Text style={styles.thankYouText}>Thank you for your feedback! 🙏</Text>
+                      <Text style={styles.messageText}>
+                        Returning to home in {countdown} seconds.
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.messageText}>
+                      Returning to home in {countdown} seconds.
+                    </Text>
+                  )}
+                </View>
+              ) : isScanned ? (
+                <View style={styles.messageContainer}>
+                  <Text style={styles.processingText}>
+                    QR Code Scanned! Processing payment...
+                  </Text>
+                  <View style={styles.qrCodeContainer}>
+                    <QRCode value={qrCodeData} size={200} />
+                  </View>
                 </View>
               ) : (
-                <Text style={styles.messageText}>
-                  Returning to home in {countdown} seconds.
-                </Text>
+                <View style={styles.messageContainer}>
+                  <Text style={styles.instructionText}>Scan the QR to pay</Text>
+                  <Text style={styles.subInstructionText}>
+                    Dispense will start automatically after successful payment
+                  </Text>
+                  <Text style={styles.amount}>
+                    Nrs. {amount || '0'}
+                  </Text>
+                  <View style={styles.qrCodeContainer}>
+                    {paymentMutation.isPending || !qrCodeData ? (
+                      // <LoadingComp />
+                      <ActivityIndicator size={40} color={"#ff6600"}/>
+                    ) : (
+                      <QRCode value={qrCodeData} size={200} />
+                    )}
+                  </View>
+                </View>
               )}
-            </View>
-          ) : qrCodeData ? (
-            <View style={styles.messageContainer}>
-              <Text style={styles.instructionText}>Scan the QR to pay</Text>
-              <Text style={styles.subInstructionText}>
-                Dispense will start automatically after successful payment
-              </Text>
-              <Text style={styles.amount}>
-                Nrs. {amount || '0'}
-              </Text>
-              <View style={styles.qrCodeContainer}>
-                <QRCode value={qrCodeData} size={200} />
-              </View>
-            </View>
-          ) : (
-            <ActivityIndicator />
-          )}
+            </ScrollView>
+          </View>
         </View>
-
-      </ScrollView>
+      </View>
 
       {/* Footer with countdown */}
       <View style={styles.countdownContainer}>
@@ -673,18 +684,53 @@ const styles = StyleSheet.create({
   },
   paymentSection: {
     flex: 1,
-    // padding: 16,
+    height: '100%',
   },
   contentContainer: {
     padding: 16,
     alignItems: 'center',
+    flexDirection: 'row',
+    height: '100%',
+    justifyContent: 'center',
+  },
+  sideBySideContainer: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    height: '100%',
+    gap: 0,
+  },
+  paymentButtonsScroll: {
+    flex: 1,
+    minWidth: 180,
+    maxWidth: 260,
+    height: '100%',
+  },
+  paymentButtonsContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  qrSectionScroll: {
+    flex: 2,
+    minWidth: 160,
+    height: '100%',
+  },
+  qrSectionContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    paddingVertical: 24,
   },
   paymentText: {
-    fontSize: 16,
+    fontSize: 22,
     textAlign: 'center',
-    color: '#666',
-    fontWeight: 'semibold',
-    marginBottom: 8,
+    fontWeight: 'bold',
+    color: '#2f2f2f',
+    marginBottom: 16,
+    marginHorizontal: 36,
   },
   paymentLogo: {
     width: 150,
@@ -710,7 +756,8 @@ const styles = StyleSheet.create({
   },
   messageContainer: {
     alignItems: 'center',
-    padding: 10,
+    paddingVertical: 10,
+    paddingRight: 10,
     borderRadius: 12,
     width: '100%',
   },

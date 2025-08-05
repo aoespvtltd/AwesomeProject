@@ -18,7 +18,7 @@ import {
   clearCart,
   getCartItems,
   getUnpaidCartsByMachine,
-  getFonePayDetails,
+  hasWhatPayments,
 } from '../../components/api/api';
 import {
   UsbSerialManager,
@@ -136,7 +136,7 @@ const Checkout = ({route, setRoute}) => {
   } = useQuery({
     queryKey: ['payDetails'],
     queryFn: async () => {
-      const res = await getFonePayDetails();
+      const res = await hasWhatPayments();
       await AsyncStorage.setItem("fonepayDetails", JSON.stringify(res.data.data))
       if (!res.data.data.fonePayDetails){
         setRoute("checkout")

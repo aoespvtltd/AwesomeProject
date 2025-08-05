@@ -3,9 +3,15 @@ import React from 'react';
 // import { useLocation, useNavigate } from 'react-router-dom';
 import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
 
-export default function ErrorPage({ message="No internet connection", setRoute }) {
+export default function ErrorPage({ message="No internet connection", setRoute, refreshFunctions, route }) {
   // const navigate = useNavigation();
   // const location = useLocation();
+
+  if (!refreshFunctions){
+    setRoute(route => (route === "home" ? "homecopy" : "home"))
+  }else{
+    refreshFunctions()
+  }
 
   return (
     <View style={styles.container}>
@@ -22,7 +28,8 @@ export default function ErrorPage({ message="No internet connection", setRoute }
         </TouchableOpacity>
       </View>
       <Image
-        source={{ uri: "https://cdn-icons-png.flaticon.com/512/2621/2621165.png" }}
+        // source={{ uri: "https://cdn-icons-png.flaticon.com/512/2621/2621165.png" }}
+        source={require("../../src/assets/noInternet.png")}
         style={styles.errorImage}
         resizeMode="contain"
       />
@@ -50,7 +57,7 @@ const styles = StyleSheet.create({
   errorMessage: {
     fontSize: 18,
     color: '#4b5563',
-    marginVertical: 16,
+    // marginVertical: 16,
     textAlign: 'center',
   },
   refreshButton: {

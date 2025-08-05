@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, ScrollView, StyleSheet, TouchableOpacity } from "react-native";
+import { View, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getappVersion, getProducts, machineId } from "../../../components/api/api";
 // import { useRouter, useLocalSearchParams } from "expo-router";
@@ -9,11 +9,10 @@ import {
   Card,
   DataTable,
   IconButton,
-  ActivityIndicator,
   Surface,
 } from "react-native-paper";
 import ProductRow from "../../../components/myComp/ProductRow";
-import TestDownloadPage from "../test/testDownloadPage";
+import TestDownloadPage from "../../../components/myComp/testDownloadPage";
 import { appVersion } from "../../constants";
 import InstallApkButton from '../../utils/InstallApkButton';
 

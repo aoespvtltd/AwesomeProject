@@ -1,3 +1,4 @@
+import { SpaceIcon } from 'lucide-react-native';
 import React, { useState, useEffect, useRef } from 'react';
 import { TouchableOpacity, ActivityIndicator } from 'react-native';
 
@@ -35,7 +36,7 @@ const DebounceTouchableOpacity = ({ onPress, children, activityIndicatorColor = 
       onPress={handlePress}
       disabled={isDebouncing || props.disabled}
     >
-      {isDebouncing ? <ActivityIndicator color={activityIndicatorColor} /> : children}
+      {isDebouncing ? <ActivityIndicator size={24} color={activityIndicatorColor} /> : children}
     </TouchableOpacity>
   );
 };

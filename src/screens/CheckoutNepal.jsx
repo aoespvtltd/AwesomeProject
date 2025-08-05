@@ -19,7 +19,7 @@ import {
   clearCart,
   getCartItems,
   getUnpaidCartsByMachine,
-  getFonePayDetails,
+  hasWhatPayments,
 } from '../../components/api/api';
 import {
   UsbSerialManager,
@@ -83,7 +83,7 @@ const CheckoutNepal = ({route, setRoute}) => {
   } = useQuery({
     queryKey: ['payDetails'],
     queryFn: async () => {
-      const res = await getFonePayDetails();
+      const res = await hasWhatPayments();
       await AsyncStorage.setItem("fonepayDetails", JSON.stringify(res.data.data))
       if (!res.data.data.nepalPayDetails){
         setRoute("checkout")
@@ -278,7 +278,7 @@ const CheckoutNepal = ({route, setRoute}) => {
           <Text style={styles.buttonText}>Back</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={() => setRoute('nepalUart')}
+          onPress={() => setRoute('uartBlank')}
           style={styles.backButton}>
           <Text style={styles.homeButtonText}>Uart</Text>
         </TouchableOpacity>
@@ -337,9 +337,10 @@ const CheckoutNepal = ({route, setRoute}) => {
                 onPress={() => setRoute('nepalCheckout')}>
                 <Image
                   style={{width: 120, height: 50}}
-                  source={{
-                    uri: 'https://files.catbox.moe/qhwpwg.png',
-                  }}
+                  // source={{
+                  //   uri: 'https://files.catbox.moe/qhwpwg.png',
+                  // }}
+                  source={require("../assets/nepalPayLogo.png")}
                   resizeMode="contain"
                 />
               </TouchableOpacity>
@@ -358,9 +359,10 @@ const CheckoutNepal = ({route, setRoute}) => {
                 onPress={() => setRoute('checkout')}>
                 <Image
                   style={{width: 120, height: 50}}
-                  source={{
-                    uri: 'https://login.fonepay.com/assets/img/fonepay_payments_fatafat.png',
-                  }}
+                  // source={{
+                  //   uri: 'https://login.fonepay.com/assets/img/fonepay_payments_fatafat.png',
+                  // }}
+                  source={require("../assets/fonePay.png")}
                   resizeMode="contain"
                 />
               </TouchableOpacity>

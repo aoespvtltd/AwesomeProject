@@ -4,7 +4,7 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import updateUtil from '../../utils/updateUtil';
+import updateUtil from '../../src/utils/updateUtil';
 
 export default function DownloadApkButton() {
   const [downloading, setDownloading] = useState(false);

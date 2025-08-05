@@ -21,6 +21,7 @@ export const requestLocationPermission = async () => {
       return false;
     }
   } catch (err) {
+    console.error('Error requesting location permission:', err);
     return false;
   }
 };
@@ -28,22 +29,39 @@ export const requestLocationPermission = async () => {
 // Get current location (returns a Promise)
 export const getCurrentLocation = () => {
   return new Promise((resolve, reject) => {
-    Geolocation.getCurrentPosition(
-      position => resolve(position),
-      error => reject(error),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
-    );
+    try {
+      Geolocation.getCurrentPosition(
+        position => resolve(position),
+        error => {
+          console.error('Geolocation error:', error);
+          reject(error);
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
+      );
+    } catch (error) {
+      console.error('Error getting current location:', error);
+      reject(error);
+    }
   });
 };
 
 // Send location to server
 export const sendLocationToServer = async () => {
-  const hasPermission = await requestLocationPermission();
-  if (!hasPermission) return false;
   try {
+    const hasPermission = await requestLocationPermission();
+    if (!hasPermission) {
+      console.log('Location permission denied');
+      return false;
+    }
+    
     const position = await getCurrentLocation();
     const machineId = await getMachineId();
-    if (!machineId) return false;
+    
+    if (!machineId) {
+      console.log('No machine ID available for location upload');
+      return false;
+    }
+    
     const res = await uploadMachineLocation(machineId, position.coords);
     return res.data;
   } catch (err) {

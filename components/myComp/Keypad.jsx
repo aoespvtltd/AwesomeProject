@@ -11,7 +11,7 @@ import {
   Image,
 } from "react-native";
 import { FAB, Icon } from "react-native-paper";
-import { addToCartByPN } from "../api/api";
+import { addToCartByPN, getCodes } from "../api/api";
 import { Trash, Trash2 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DebounceTouchableOpacity from "./DebounceTouchableOpacity";
@@ -26,19 +26,20 @@ import CustomDialog from './CustomDialog';
 //   "9876543215": "uart"
 // };
 
-// const secretCodes = {
-//   // "fillStock": "987",
-//   "fillStock": "9876543210",
-//   "findSerial": "9876543211",
-//   "login": "9876543212",
-//   "machines": "9876543213",
-//   "uart": "9876543214",
-//   "testPage": "9876543215",
-//   "wifi": "9876543216",
-//   "ad": "9876543217",
-//   "settings": "9876543218",
-//   "findSerialUart": "987",
-// };
+const secretCodes = {
+  // "fillStock": "987",
+  "fillStock": "9876543210",
+  "findSerial": "9876543211",
+  "login": "9876543212",
+  "machines": "987",
+  "uart": "9876543214",
+  "testPage": "9876543215",
+  "wifi": "9876543216",
+  "ad": "9876543217",
+  "settings": "9876543218",
+  "findSerialUart": "9876543219",
+  // "asyncData": "987"
+};
 
 const Keypad = ({
   inputValue,
@@ -48,25 +49,28 @@ const Keypad = ({
   filteredProducts,
   qty,
   clearCart,
-  setRoute
+  setRoute,
+  resetTimer
 }) => {
-  const [secretCodes, setSecretCodes] = useState({});
+  // const [secretCodes, setSecretCodes] = useState({});
 
-  const getSecretCodes = async () => {
-    try {
-      const codes = await AsyncStorage.getItem("codes");
-      console.log("Retrieved codes:", codes);
-      const parsedCodes = JSON.parse(codes);
-      setSecretCodes(parsedCodes || {});
-    } catch (error) {
-      console.error("Error fetching secret codes:", error);
-      setSecretCodes({});
-    }
-  };
+  // const getSecretCodes = async () => {
+  //   try {
+  //     const getCodesData = await getCodes()
+  //     const codes = getCodesData?.data?.data?.codes
+  //     // const codes = await AsyncStorage.getItem("codes");
+  //     console.log("Retrieved codes:", codes);
+  //     // const parsedCodes = JSON.parse(codes);
+  //     setSecretCodes(codes || {});
+  //   } catch (error) {
+  //     console.error("Error fetching secret codes:", error);
+  //     setSecretCodes({});
+  //   }
+  // };
 
-  useEffect(() => {
-    getSecretCodes();
-  }, []);
+  // useEffect(() => {
+  //   getSecretCodes();
+  // }, []);
 
   const createTwoButtonAlert = () => {
     Alert.alert(
@@ -90,6 +94,7 @@ const Keypad = ({
   };
 
   const toggleKeypad = useCallback(() => {
+    resetTimer()
     if (isKeypadVisible) {
       closeKeypad();
     } else {
@@ -115,7 +120,8 @@ const Keypad = ({
         await addToCartByPN(parseInt(inputValue))
           .then(() => {
             // router.push("checkout");
-            setRoute("nepalCheckout")
+            resetTimer()
+            setRoute("uartBlank")
           })
           .catch((error) => {
             createTwoButtonAlert()

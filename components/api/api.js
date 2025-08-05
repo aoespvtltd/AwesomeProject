@@ -7,35 +7,61 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export let machineId = "";
 
 export async function getMachineId(){
-  machineId = await AsyncStorage.getItem("machineId")
-  console.log(machineId)
-  if (!machineId){
-    machineId = "66d72290ee1e0a2dabce6069"
+  try {
+    machineId = await AsyncStorage.getItem("machineId");
+    console.log('Machine ID from API:', machineId);
+    if (!machineId){
+      machineId = "66d72290ee1e0a2dabce6069";
+    }
+    return machineId;
+  } catch (error) {
+    console.error('Error getting machine ID:', error);
+    machineId = "66d72290ee1e0a2dabce6069";
+    return machineId;
   }
-  return machineId
 }
 
-getMachineId()
-
+getMachineId();
 
 const apiClient = axios.create({
   baseURL,
-  headers: { Authorization: `Bearer ${accessToken}` },
+  timeout: 10000, // 10 second timeout
 });
 
-apiClient.interceptors.request.use((req) => {
-  const accessToken = AsyncStorage.getItem('accessToken') || '';
-
-  if (accessToken) {
-    req.headers.Authorization = `Bearer ${accessToken}`;
-  } else {
-    console.log("You must log in first");
+apiClient.interceptors.request.use(async (req) => {
+  try {
+    const accessToken = await AsyncStorage.getItem('accessToken');
+    
+    if (accessToken) {
+      req.headers.Authorization = `Bearer ${accessToken}`;
+    } else {
+      console.log("No access token found, proceeding without authentication");
+    }
+    
+    return req;
+  } catch (error) {
+    console.error('Error in request interceptor:', error);
+    return req;
   }
-
-  return req;
 }, error => {
+  console.error('Request interceptor error:', error);
   return Promise.reject(error);
 });
+
+// Add response interceptor to handle common errors
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      console.log('Authentication error - user may need to login');
+      // Don't throw error, just log it
+    } else if (error.response?.status === 404) {
+      console.log('Resource not found:', error.config?.url);
+      // Don't throw error, just log it
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Cart Operations
 export const addToCart = async productId => {
@@ -141,6 +167,10 @@ export const getVendingMachinesByOwner = async () => {
   }); // Include machineId in the request
 };
 
+export const updateVendingMachine = async (machineId, data)=>{
+  return await apiClient.patch(`/vending-machines/${machineId}`, data)
+}
+
 export const getMachineDetails = async (machineId) =>{
   return await apiClient.get(`/vending-machines/${machineId}`)
 }
@@ -166,7 +196,7 @@ export const initiateNepalPay = async ()=>{
 }
 
 export const getFonePayDetails = async ()=>{
-  return await apiClient.get("/users/fonePayDetails")
+  return apiClient.get("/users/fonePayDetails").then((res)=> res).catch(err=>console.error("err", err))
 }
 
 export const downloadApp = async ()=>{
@@ -179,4 +209,12 @@ export const getappVersion = async() => {
 
 export const checkForUpdate = async (appName, version)=>{
   return await apiClient.post(`/appVersion/checkForUpdates`, {appName, version})
+}
+
+export const getCodes = async ()=>{
+  return await apiClient.get("/users/codes")
+}
+
+export const hasWhatPayments = async ()=>{
+  return await apiClient.get("/users/hasWhatPayments")
 }

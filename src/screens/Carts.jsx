@@ -23,7 +23,7 @@ import LoadingComp from '../../components/myComp/LoadingComp';
 import ErrorPage from '../../components/myComp/ErrorPage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function Carts({route, setRoute}) {
+export default function Carts({route, setRoute, resetTimer}) {
   // Initialize React Query client for managing server state
   const queryClient = useQueryClient();
 
@@ -40,7 +40,7 @@ export default function Carts({route, setRoute}) {
     error: CartFetchError,
     refetch,
   } = useQuery({
-    queryKey: ['cartItems'],
+    queryKey: ['cartData'],
     queryFn: async () => {
       let response = await getCartItems();
       return response?.data?.data;
@@ -54,12 +54,12 @@ export default function Carts({route, setRoute}) {
   // Effect to refresh cart data when component mounts and cleanup on unmount
   useEffect(() => {
     // Invalidate and refetch cart data
-    queryClient.invalidateQueries(['cartItems']);
+    queryClient.invalidateQueries(['cartData']);
     refetch();
 
     // Cleanup function to clear cache when component unmounts
     return () => {
-      queryClient.invalidateQueries(['cartItems']);
+      queryClient.invalidateQueries(['cartData']);
       queryClient.clear();
     };
   }, []);
@@ -80,7 +80,7 @@ export default function Carts({route, setRoute}) {
     try {
       setCartDisabled(true); // Disable button when clicked
       await clearCart();
-      queryClient.invalidateQueries(['cartItems']);
+      queryClient.invalidateQueries(['cartData']);
       setRoute('home');
     } catch (error) {
       console.error('Error clearing cart:', error);
@@ -97,11 +97,13 @@ export default function Carts({route, setRoute}) {
   };
 
   const gotoCheckout = async ()=>{
-    initiateNepalPay().then((res)=>{
-      console.log(res.data.data.data.qrString)
-      AsyncStorage.setItem("qrString", res.data.data.data.qrString)
-    })
-    setRoute("nepalCheckout")
+    // initiateNepalPay().then((res)=>{
+    //   console.log(res.data.data.data.qrString)
+    //   AsyncStorage.setItem("qrString", res.data.data.data.qrString)
+    // })
+    console.log("object")
+    resetTimer()
+    setRoute("uartBlank")
   }
 
   // // Show loading spinner while cart data is being fetched

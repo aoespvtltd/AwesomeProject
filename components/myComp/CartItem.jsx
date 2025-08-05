@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Image, StyleSheet, TouchableOpacity } from 'react-native';
-import { Card, Title, Paragraph, Button, IconButton, Text, ActivityIndicator } from 'react-native-paper';
+import { View, Image, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Card, Title, Paragraph, Button, IconButton, Text } from 'react-native-paper';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { removeCartItem, updateCartItem } from '../api/api';
 import { Minus, Plus } from 'lucide-react-native';

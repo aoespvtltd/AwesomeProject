@@ -2,7 +2,7 @@ import React, { memo } from "react";
 import { TouchableOpacity, Text, StyleSheet } from "react-native";
 import { ShoppingCart } from "lucide-react-native";
 
-const AddToCartButton = memo(({ isDisabled, buttonLabel, onPress }) => {
+const AddToCartButton = memo(({ isDisabled, buttonLabel, onPress, isConnected }) => {
   return (
     <TouchableOpacity
       onPress={onPress}

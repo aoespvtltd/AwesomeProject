@@ -24,7 +24,7 @@ function MainContent() {
     data: cartItems,
     isLoading: cartLoading,
     error: cartError,
-  } = useQuery({ queryKey: ["cartItems", machineId], queryFn: getCartItems });
+  } = useQuery({ queryKey: ["cartData"], queryFn: getCartItems });
 
   useEffect(() => {
     if (products) {
